@@ -19,11 +19,11 @@ jobs:
           java-version: "17"
           distribution: "temurin"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
+      # ubuntu-latest already ships the Android SDK (ANDROID_HOME). The old
+      # android-actions/setup-android step tried to install the removed 'tools'
+      # package and crashed the job, so it is gone; just accept licenses.
       - name: Accept Android licenses
-        run: yes | sdkmanager --licenses || true
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
