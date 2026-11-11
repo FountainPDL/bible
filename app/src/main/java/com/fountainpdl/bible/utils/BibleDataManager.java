@@ -42,6 +42,10 @@ public class BibleDataManager {
 
     public interface LoadCallback { void onLoaded(); }
 
+    private final List<LoadCallback> waiting = new ArrayList<>();
+    private boolean loading = false;
+    private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+
     private BibleDataManager() {}
 
     public static synchronized BibleDataManager getInstance() {
@@ -51,18 +55,97 @@ public class BibleDataManager {
 
     public boolean isLoaded() { return loaded; }
 
+    /**
+     * Calls back on the main thread once the text is in memory. Safe to call from
+     * any number of screens: every caller gets its callback, whether the load is
+     * not started, in flight, or already finished. (Previously only the first
+     * caller was notified, so a screen created while the load was running could
+     * stay blank.)
+     */
     public void loadAsync(Context context, LoadCallback callback) {
-        if (loaded) { if (callback != null) callback.onLoaded(); return; }
+        if (loaded) {
+            if (callback != null) {
+                if (Looper_isMain()) callback.onLoaded(); else main.post(callback::onLoaded);
+            }
+            return;
+        }
+        boolean start;
+        synchronized (waiting) {
+            if (callback != null) waiting.add(callback);
+            start = !loading;
+            loading = true;
+        }
+        if (!start) return;
         Context appCtx = context.getApplicationContext();
         executor.execute(() -> {
-            loadTranslation(appCtx, "KJV", new String[]{"bible/kjv-ot.json", "bible/kjv-nt.json"});
-            loadTranslation(appCtx, "NIV", new String[]{"bible/niv-ot.json", "bible/niv-nt.json"});
-            loaded = true;
-            if (callback != null) {
-                android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
-                main.post(callback::onLoaded);
+            try {
+                loadTranslation(appCtx, "KJV", new String[]{"bible/kjv-ot.json", "bible/kjv-nt.json"});
+                loadTranslation(appCtx, "NIV", new String[]{"bible/niv-ot.json", "bible/niv-nt.json"});
+                fixNivVerseNumbering();
+            } catch (Throwable t) {
+                t.printStackTrace();
             }
+            loaded = true; // even on partial failure, so the UI never waits forever
+            final List<LoadCallback> toNotify;
+            synchronized (waiting) {
+                toNotify = new ArrayList<>(waiting);
+                waiting.clear();
+                loading = false;
+            }
+            main.post(() -> { for (LoadCallback cb : toNotify) cb.onLoaded(); });
         });
+    }
+
+    private static boolean Looper_isMain() {
+        return android.os.Looper.myLooper() == android.os.Looper.getMainLooper();
+    }
+
+    /**
+     * The NIV omits verses that older manuscripts lack (Mark 9:44, John 5:4, ...),
+     * but the bundled NIV data numbers its verses 1..N with no gap, so everything
+     * after the omission is off by one (or two) against the KJV and against any
+     * saved bookmark, highlight or note. Re-number those chapters so the verse
+     * numbers line up with the KJV and leave the omitted slots empty.
+     * Only applied when the chapter size is exactly KJV size minus the omitted
+     * count, so already-correct or differently-broken data is never touched.
+     */
+    private static final String[][] NIV_OMITTED = {
+        {"Mark:9", "44,46"}, {"Mark:11", "26"}, {"Mark:15", "28"}, {"Luke:17", "36"},
+        {"Luke:23", "17"}, {"John:5", "4"}, {"Acts:8", "37"}, {"Acts:15", "34"},
+        {"Acts:24", "7"}, {"Acts:28", "29"}, {"Romans:16", "24"}
+    };
+
+    private void fixNivVerseNumbering() {
+        Map<String, Map<String, String>> niv = data.get("NIV");
+        Map<String, Map<String, String>> kjv = data.get("KJV");
+        if (niv == null || kjv == null) return;
+        for (String[] entry : NIV_OMITTED) {
+            String key = entry[0];
+            Map<String, String> nChap = niv.get(key);
+            Map<String, String> kChap = kjv.get(key);
+            if (nChap == null || kChap == null) continue;
+            String[] omittedStr = entry[1].split(",");
+            java.util.Set<Integer> omitted = new java.util.HashSet<>();
+            for (String o : omittedStr) omitted.add(Integer.parseInt(o.trim()));
+            if (nChap.size() != kChap.size() - omitted.size()) continue;
+
+            TreeMap<Integer, String> sorted = new TreeMap<>();
+            boolean ok = true;
+            for (Map.Entry<String, String> e : nChap.entrySet()) {
+                try { sorted.put(Integer.parseInt(e.getKey()), e.getValue()); }
+                catch (NumberFormatException ex) { ok = false; break; }
+            }
+            if (!ok) continue;
+
+            Map<String, String> fixed = new LinkedHashMap<>();
+            int cur = 1;
+            for (String text : sorted.values()) {
+                while (omitted.contains(cur)) cur++;
+                fixed.put(String.valueOf(cur), text);
+                cur++;
+            }
+            niv.put(key, fixed);
+        }
     }
 
     private void loadTranslation(Context context, String translation, String[] assetPaths) {

@@ -59,7 +59,7 @@ public class SearchResultAdapter extends RecyclerView.Adapter<SearchResultAdapte
         holder.text.setText(spannable);
 
         if (theme != null) {
-            holder.ref.setTextColor(theme.primary);
+            holder.ref.setTextColor(theme.primaryFg);
             holder.text.setTextColor(theme.text);
         }
 

@@ -145,7 +145,7 @@ public class MarathonDialog {
         if (active) {
             gd.setColor(withAlpha(theme.primary, 0x28));
             gd.setStroke(dp(1), theme.primary);
-            btn.setTextColor(theme.primary);
+            btn.setTextColor(theme.primaryFg);
         } else {
             gd.setColor(theme.card);
             gd.setStroke(dp(1), withAlpha(theme.sub, 0x33));

@@ -71,11 +71,12 @@ public class NoteDialog {
         LinearLayout.LayoutParams refLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         refsInput.setLayoutParams(refLp);
         if (editNote != null && editNote.refs != null) refsInput.setText(editNote.refs);
+        else if (editNote == null && linkedRef != null && !linkedRef.isEmpty()) refsInput.setText(linkedRef); // saved with the note
         refRow.addView(refsInput);
 
         TextView pickBtn = new TextView(context);
         pickBtn.setText("Pick");
-        pickBtn.setTextColor(theme.primary);
+        pickBtn.setTextColor(theme.primaryFg);
         pickBtn.setTextSize(12);
         pickBtn.setPadding(dp(12), dp(10), dp(12), dp(10));
         GradientDrawable pickBg = new GradientDrawable();
@@ -92,7 +93,7 @@ public class NoteDialog {
         if (linkedRef != null && !linkedRef.isEmpty()) {
             TextView linkedLabel = new TextView(context);
             linkedLabel.setText("Linked: " + linkedRef);
-            linkedLabel.setTextColor(theme.primary);
+            linkedLabel.setTextColor(theme.primaryFg);
             linkedLabel.setTextSize(11);
             linkedLabel.setPadding(0, dp(8), 0, 0);
             root.addView(linkedLabel);

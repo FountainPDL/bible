@@ -13,6 +13,7 @@ import androidx.fragment.app.Fragment;
 import com.fountainpdl.bible.MainActivity;
 import com.fountainpdl.bible.R;
 import com.fountainpdl.bible.utils.AppTheme;
+import com.fountainpdl.bible.utils.ThemeHelper;
 
 import java.util.Calendar;
 
@@ -54,17 +55,28 @@ public class HomeFragment extends Fragment {
         v.findViewById(R.id.quickNotes).setOnClickListener(x -> openLibraryTab("notes"));
         v.findViewById(R.id.quickSermons).setOnClickListener(x -> openLibraryTab("sermons"));
         v.findViewById(R.id.quickMarathon).setOnClickListener(x -> openLibraryTab("marathon"));
-        v.findViewById(R.id.quickSearch).setOnClickListener(x -> {
-            // Bottom nav item id for search
-            View root = getActivity().findViewById(R.id.bottomNav);
-            if (root instanceof com.google.android.material.bottomnavigation.BottomNavigationView) {
-                ((com.google.android.material.bottomnavigation.BottomNavigationView) root).setSelectedItemId(R.id.nav_search);
-            }
-        });
+        v.findViewById(R.id.quickSearch).setOnClickListener(x -> activity.showSearch());
 
         refreshData();
-        loadVerseOfDay();
         onThemeChanged();
+        // The verse of the day needs the Bible text; wait for it instead of showing a blank card.
+        activity.getBibleData().loadAsync(activity, () -> { if (getView() != null) loadVerseOfDay(); });
+    }
+
+    /** Called by MainActivity whenever any setting changes (e.g. translation). */
+    public void onSettingsChanged() {
+        if (getView() == null || activity == null) return;
+        refreshData();
+        if (activity.getBibleData().isLoaded()) loadVerseOfDay();
+    }
+
+    @Override
+    public void onHiddenChanged(boolean hidden) {
+        super.onHiddenChanged(hidden);
+        if (!hidden && getView() != null) {
+            refreshData();
+            if (activity.getBibleData().isLoaded()) loadVerseOfDay();
+        }
     }
 
     private void goToCurrentChapter() {
@@ -72,7 +84,7 @@ public class HomeFragment extends Fragment {
     }
 
     private void openLibraryTab(String tab) {
-        activity.showLibrary();
+        activity.showLibrary(tab);
     }
 
     public void refreshData() {
@@ -103,15 +115,39 @@ public class HomeFragment extends Fragment {
     private void applyCardColors(View root) {
         AppTheme t = activity.getAppTheme();
         View continueCard = root.findViewById(R.id.continueCard);
-        if (continueCard != null) continueCard.getBackground().setTint(t.card);
-        if (continuePosition != null) continuePosition.setTextColor(t.primary);
+        if (continueCard != null) ThemeHelper.card(continueCard, t, 14);
+        if (continuePosition != null) continuePosition.setTextColor(t.primaryFg);
         if (votdText != null) votdText.setTextColor(t.text);
-        if (votdRef != null) votdRef.setTextColor(t.accent);
+        if (votdRef != null) votdRef.setTextColor(t.accentFg);
+        // Everything else on the page that has no explicit role: readable body color.
+        paintHomeRest(root, t);
+    }
+
+    private void paintHomeRest(View root, AppTheme t) {
+        ThemeHelper.card(root.findViewById(R.id.votdCard), t, 14);
+        for (int id : new int[]{R.id.continueLabel, R.id.votdLabel, R.id.quickLabel}) {
+            TextView tv = root.findViewById(id);
+            if (tv != null) tv.setTextColor(t.sub);
+        }
+        for (int id : new int[]{R.id.continueBtn, R.id.quickBookmarks, R.id.quickNotes,
+                                R.id.quickSermons, R.id.quickMarathon, R.id.quickSearch}) {
+            TextView tv = root.findViewById(id);
+            if (tv != null) ThemeHelper.pill(tv, t);
+        }
+        TextView nav = root.findViewById(R.id.navigateBtn);
+        if (nav != null) {
+            android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, new int[]{t.primary, t.accent});
+            g.setCornerRadius(ThemeHelper.dp(requireContext(), 14));
+            nav.setBackground(g);
+            int mid = com.fountainpdl.bible.utils.ColorUtils.mix(t.primary, t.accent, 0.5f);
+            nav.setTextColor(com.fountainpdl.bible.utils.ColorUtils.luminance(mid) > 0.45 ? 0xFF000000 : 0xFFFFFFFF);
+        }
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        refreshData();
+        if (!isHidden()) refreshData();
     }
 }

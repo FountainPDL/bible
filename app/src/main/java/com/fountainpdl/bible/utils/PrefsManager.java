@@ -74,6 +74,25 @@ public class PrefsManager {
         return prefs.getInt(KEY_SCROLL_PREFIX + book + "_" + chapter, 0);
     }
 
+    /**
+     * Scroll memory as an anchor (first visible adapter position + pixel offset of
+     * that row) rather than a raw pixel total. A pixel total depends on every row
+     * above being laid out, which isn't true while the Read tab is hidden or the
+     * list is still filling, so restoring it left the page at the top / blank.
+     */
+    public void saveScrollAnchor(String book, int chapter, int position, int offset) {
+        prefs.edit()
+            .putInt(KEY_SCROLL_PREFIX + "pos_" + book + "_" + chapter, position)
+            .putInt(KEY_SCROLL_PREFIX + "off_" + book + "_" + chapter, offset)
+            .apply();
+    }
+    public int getScrollAnchorPosition(String book, int chapter) {
+        return prefs.getInt(KEY_SCROLL_PREFIX + "pos_" + book + "_" + chapter, 0);
+    }
+    public int getScrollAnchorOffset(String book, int chapter) {
+        return prefs.getInt(KEY_SCROLL_PREFIX + "off_" + book + "_" + chapter, 0);
+    }
+
     // ── Generic list helpers ─────────────────────────────────────────────────
     private <T> List<T> loadList(String key, Type type) {
         String json = prefs.getString(key, null);

@@ -74,7 +74,7 @@ public class SermonDialog {
         root.addView(label("ADD SCRIPTURE"));
         TextView pickerBtn = new TextView(context);
         pickerBtn.setText("Pick Verse Reference");
-        pickerBtn.setTextColor(theme.primary);
+        pickerBtn.setTextColor(theme.primaryFg);
         pickerBtn.setGravity(Gravity.CENTER);
         pickerBtn.setPadding(dp(12), dp(11), dp(12), dp(11));
         GradientDrawable pBg = new GradientDrawable();
@@ -208,7 +208,7 @@ public class SermonDialog {
             if ("verse".equals(bl.type)) {
                 TextView refLabel = new TextView(context);
                 refLabel.setText(bl.ref);
-                refLabel.setTextColor(theme.accent);
+                refLabel.setTextColor(theme.accentFg);
                 refLabel.setTextSize(11);
                 refLabel.setPadding(0, 0, 0, dp(4));
                 item.addView(refLabel);
@@ -260,7 +260,7 @@ public class SermonDialog {
     private TextView smallBtn(String text) {
         TextView tv = new TextView(context);
         tv.setText(text);
-        tv.setTextColor(theme.primary);
+        tv.setTextColor(theme.primaryFg);
         tv.setTextSize(12);
         tv.setPadding(dp(12), dp(8), dp(12), dp(8));
         tv.setGravity(Gravity.CENTER);

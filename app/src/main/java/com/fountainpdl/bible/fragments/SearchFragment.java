@@ -82,6 +82,11 @@ public class SearchFragment extends Fragment {
             searchStatus.setText("");
             return;
         }
+        if (!activity.getBibleData().isLoaded()) {
+            searchStatus.setText("Loading Bible text…");
+            activity.getBibleData().loadAsync(activity, () -> { if (getView() != null) performSearch(searchInput.getText().toString()); });
+            return;
+        }
         String translation = activity.getPrefsManager().getSettings().translation;
         List<SearchResult> results = activity.getBibleData().search(query.trim(), translation, 100);
         adapter.setResults(results);
@@ -96,9 +101,22 @@ public class SearchFragment extends Fragment {
         searchStatus.setText(results.size() + " result" + (results.size() != 1 ? "s" : "") + " in " + translation);
     }
 
+    /** Translation switched: redo the current query so results match the new text. */
+    public void onTranslationChanged() {
+        if (activity == null || getView() == null || searchInput == null) return;
+        performSearch(searchInput.getText().toString());
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (debounceRunnable != null) debounceHandler.removeCallbacks(debounceRunnable);
+        super.onDestroyView();
+    }
+
     public void onThemeChanged() {
         if (activity == null || getView() == null) return;
         getView().setBackgroundColor(activity.getAppTheme().surface);
+        if (searchInput != null) com.fountainpdl.bible.utils.ThemeHelper.input(searchInput, activity.getAppTheme());
         if (adapter != null) { adapter.setTheme(activity.getAppTheme()); adapter.notifyDataSetChanged(); }
         if (searchStatus != null) searchStatus.setTextColor(activity.getAppTheme().sub);
         if (emptyState != null) emptyState.setTextColor(activity.getAppTheme().sub);

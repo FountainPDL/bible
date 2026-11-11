@@ -84,6 +84,47 @@ public class ColorUtils {
         return Color.rgb(r, g, b);
     }
 
+    /** WCAG relative luminance, 0 (black) to 1 (white). */
+    public static double luminance(int color) {
+        double r = linear(Color.red(color) / 255.0);
+        double g = linear(Color.green(color) / 255.0);
+        double b = linear(Color.blue(color) / 255.0);
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+
+    private static double linear(double v) {
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    }
+
+    /** WCAG contrast ratio between two opaque colors, 1 (none) to 21 (black on white). */
+    public static double contrast(int a, int b) {
+        double la = luminance(a);
+        double lb = luminance(b);
+        double hi = Math.max(la, lb);
+        double lo = Math.min(la, lb);
+        return (hi + 0.05) / (lo + 0.05);
+    }
+
+    /**
+     * Returns fg unchanged if it is already readable on bg; otherwise nudges its
+     * lightness (keeping hue and saturation) until the contrast ratio is met.
+     * Lets a user-picked brand color stay recognisable while text in that color
+     * remains legible on both light and dark backgrounds.
+     */
+    public static int ensureContrast(int fg, int bg, double minRatio) {
+        if (contrast(fg, bg) >= minRatio) return fg;
+        float[] hsl = toHsl(fg);
+        boolean lighten = luminance(bg) < 0.5;
+        float l = hsl[2];
+        for (int i = 0; i < 100; i++) {
+            l += lighten ? 1f : -1f;
+            if (l < 0f || l > 100f) break;
+            int candidate = fromHsl(hsl[0], hsl[1], l);
+            if (contrast(candidate, bg) >= minRatio) return candidate;
+        }
+        return lighten ? 0xFFFFFFFF : 0xFF000000;
+    }
+
     public static boolean isDark(int backgroundColor) {
         double luminance = (0.299 * Color.red(backgroundColor) +
                              0.587 * Color.green(backgroundColor) +

@@ -23,6 +23,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:id="@+id/continueLabel"
                 android:text="CONTINUE READING"
                 android:textSize="10sp"
                 android:letterSpacing="0.14"
@@ -49,6 +50,7 @@
 
         <!-- Verse of the day -->
         <LinearLayout
+            android:id="@+id/votdCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -59,6 +61,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:id="@+id/votdLabel"
                 android:text="VERSE OF THE DAY"
                 android:textSize="10sp"
                 android:letterSpacing="0.14"
@@ -102,6 +105,7 @@
 
         <!-- Quick links grid -->
         <TextView
+            android:id="@+id/quickLabel"
             style="@style/SectionLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

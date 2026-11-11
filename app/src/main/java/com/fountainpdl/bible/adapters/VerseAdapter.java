@@ -63,6 +63,16 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
         notifyDataSetChanged();
     }
 
+    /** Replace every annotation set in one pass and redraw once (instead of four times). */
+    public void setAnnotations(Map<Integer, Highlight> h, Map<Integer, Highlight> u, Set<Integer> b,
+                               Map<Integer, List<WordAnn>> w) {
+        highlights.clear(); highlights.putAll(h);
+        underlines.clear(); underlines.putAll(u);
+        bookmarked.clear(); bookmarked.addAll(b);
+        wordAnns.clear(); wordAnns.putAll(w);
+        notifyDataSetChanged();
+    }
+
     public void setHighlights(Map<Integer, Highlight> h) { this.highlights.clear(); this.highlights.putAll(h); notifyDataSetChanged(); }
     public void setUnderlines(Map<Integer, Highlight> u) { this.underlines.clear(); this.underlines.putAll(u); notifyDataSetChanged(); }
     public void setBookmarked(Set<Integer> b) { this.bookmarked.clear(); this.bookmarked.addAll(b); notifyDataSetChanged(); }
@@ -131,11 +141,22 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
                 && JesusWords.isRedLetter(verse.book, verse.chapter, vn);
 
         String prefix = (settings == null || settings.verseNumbers) ? (vn + " ") : "";
-        SpannableBuilder sb = new SpannableBuilder(prefix, verse.text);
+        boolean boldNums = settings != null && settings.boldVerseNumbers;
+        SpannableBuilder sb = new SpannableBuilder(prefix, verse.text, boldNums);
 
         holder.verseText.setText(sb.build());
         holder.verseText.setTextSize(settings != null ? settings.fontSize : 18);
-        if (settings != null) holder.verseText.setLineSpacing(0, settings.lineSpacing);
+        if (settings != null) {
+            holder.verseText.setLineSpacing(0, settings.lineSpacing);
+            String fam = settings.fontFamily != null ? settings.fontFamily : "serif";
+            holder.verseText.setTypeface(android.graphics.Typeface.create(fam, android.graphics.Typeface.NORMAL));
+            holder.verseText.setJustificationMode(settings.justifyText
+                ? android.text.Layout.JUSTIFICATION_MODE_INTER_WORD
+                : android.text.Layout.JUSTIFICATION_MODE_NONE);
+            int vPad = dp(holder, settings.compactMode ? 2 : 8);
+            holder.verseRoot.setPadding(holder.verseRoot.getPaddingLeft(), vPad,
+                holder.verseRoot.getPaddingRight(), vPad);
+        }
 
         int textColor = isRed && theme != null ? theme.redWord : (theme != null ? theme.text : Color.WHITE);
         holder.verseText.setTextColor(textColor);
@@ -147,7 +168,12 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
         if (theme != null) {
             if (isFlashing) bg = withAlpha(theme.accent, 0x55);
             else if (isSelected) bg = theme.selectedBg;
-            else if (isHighlighted) bg = theme.highlightBg;
+            else if (isHighlighted) {
+                Highlight hl = highlights.get(vn);
+                bg = (hl != null && hl.color != null)
+                    ? withAlpha(safeColor(hl.color), theme.isDark ? 0x55 : 0x70)
+                    : theme.highlightBg;
+            }
             else if (isTtsActive) bg = withAlpha(theme.accent, 0x18);
         }
         holder.verseRoot.setBackgroundColor(bg);
@@ -163,11 +189,11 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
                 chip.setPadding(dp(holder, 8), dp(holder, 2), dp(holder, 8), dp(holder, 2));
                 android.graphics.drawable.GradientDrawable bg2 = new android.graphics.drawable.GradientDrawable();
                 int annColor = ann.color != null ? safeColor(ann.color) : (theme != null ? theme.primary : Color.MAGENTA);
-                bg2.setColor("highlight".equals(ann.type) ? annColor : withAlpha(theme != null ? theme.primary : Color.GRAY, 0x22));
+                bg2.setColor("highlight".equals(ann.type) ? withAlpha(annColor, 0x66) : withAlpha(theme != null ? theme.primary : Color.GRAY, 0x22));
                 bg2.setStroke(dp(holder,1), withAlpha(annColor, 0x88));
                 bg2.setCornerRadius(dp(holder, 10));
                 chip.setBackground(bg2);
-                chip.setTextColor(theme != null && theme.isDark ? Color.WHITE : Color.BLACK);
+                chip.setTextColor(theme != null ? theme.text : Color.WHITE);
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
                 lp.setMarginEnd(dp(holder, 4));
                 chip.setLayoutParams(lp);
@@ -214,12 +240,14 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
 
     private static class SpannableBuilder {
         private final String prefix, body;
-        SpannableBuilder(String prefix, String body) { this.prefix = prefix; this.body = body; }
+        private final boolean bold;
+        SpannableBuilder(String prefix, String body, boolean bold) { this.prefix = prefix; this.body = body; this.bold = bold; }
         CharSequence build() {
             if (prefix.isEmpty()) return body;
             android.text.SpannableString ss = new android.text.SpannableString(prefix + body);
             ss.setSpan(new android.text.style.RelativeSizeSpan(0.62f), 0, prefix.length(), 0);
             ss.setSpan(new android.text.style.SuperscriptSpan(), 0, prefix.length(), 0);
+            if (bold) ss.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, prefix.length(), 0);
             return ss;
         }
     }

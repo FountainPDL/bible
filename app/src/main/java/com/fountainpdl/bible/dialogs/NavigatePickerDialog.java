@@ -62,7 +62,7 @@ public class NavigatePickerDialog {
         TextView title = new TextView(context);
         title.setText("Navigate to Scripture");
         title.setTextSize(16);
-        title.setTextColor(theme.primary);
+        title.setTextColor(theme.primaryFg);
         title.setPadding(0, 0, 0, dp(14));
         root.addView(title);
 
@@ -200,7 +200,7 @@ public class NavigatePickerDialog {
 
         TextView openChapter = new TextView(context);
         openChapter.setText("Open Full Chapter");
-        openChapter.setTextColor(Color.WHITE);
+        openChapter.setTextColor(com.fountainpdl.bible.utils.ColorUtils.luminance(com.fountainpdl.bible.utils.ColorUtils.mix(theme.primary, theme.accent, 0.5f)) > 0.45 ? Color.BLACK : Color.WHITE);
         openChapter.setGravity(Gravity.CENTER);
         openChapter.setPadding(dp(14), dp(12), dp(14), dp(12));
         GradientDrawable grad = new GradientDrawable();

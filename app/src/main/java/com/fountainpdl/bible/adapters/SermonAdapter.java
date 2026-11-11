@@ -48,9 +48,9 @@ public class SermonAdapter extends RecyclerView.Adapter<SermonAdapter.VH> {
         holder.meta.setText(s.blocks.size() + " block" + (s.blocks.size() != 1 ? "s" : "") + " · " + dateFormat.format(new java.util.Date(s.timestamp)));
 
         if (theme != null) {
-            holder.title.setTextColor(theme.primary);
+            holder.title.setTextColor(theme.primaryFg);
             holder.meta.setTextColor(theme.sub);
-            holder.edit.setTextColor(theme.primary);
+            holder.edit.setTextColor(theme.primaryFg);
             holder.delete.setTextColor(theme.sub);
         }
 

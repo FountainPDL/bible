@@ -187,7 +187,7 @@ public class WordAnnotationDialog {
         if (active) {
             gd.setColor(withAlpha(theme.primary, 0x33));
             gd.setStroke(dp(1), theme.primary);
-            btn.setTextColor(theme.primary);
+            btn.setTextColor(theme.primaryFg);
         } else {
             gd.setColor(Color.TRANSPARENT);
             gd.setStroke(dp(1), theme.sub);

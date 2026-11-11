@@ -31,6 +31,7 @@ import com.fountainpdl.bible.utils.AppTheme;
 import com.fountainpdl.bible.utils.BibleDataManager;
 import com.fountainpdl.bible.utils.BooksData;
 import com.fountainpdl.bible.utils.PrefsManager;
+import com.fountainpdl.bible.utils.ThemeHelper;
 import com.google.android.material.chip.Chip;
 
 import java.util.ArrayList;
@@ -54,6 +55,17 @@ public class ReadFragment extends Fragment {
     private int chapter;
     private List<Verse> currentVerses = new ArrayList<>();
 
+    // A chapter load asked for before the Bible text finished loading from assets.
+    private boolean dataReady = false;
+    private boolean pendingLoad = false;
+    private Integer pendingScrollVerse = null;
+
+    // Focus (one verse at a time) reading mode
+    private View focusContainer, chapterHeader;
+    private TextView focusRef, focusText, focusCounter;
+    private int focusIndex = 0;
+    private boolean focusMode = false;
+
     private GestureDetector gestureDetector;
 
     @Nullable @Override
@@ -74,21 +86,85 @@ public class ReadFragment extends Fragment {
         setupActionBar();
         setupTtsBar();
 
-        activity.setTtsUiListener((playing, verse) -> {
-            if (playing) {
-                ttsStatusBar.setVisibility(View.VISIBLE);
-                ttsStatusText.setText("Reading verse " + verse + "…");
-                adapter.setTtsActiveVerse(verse);
-                scrollToVerse(verse, false);
-            } else {
-                ttsStatusBar.setVisibility(View.GONE);
-                adapter.setTtsActiveVerse(-1);
-            }
-        });
+        activity.setTtsUiListener(this::onTtsStateChanged);
 
         book = activity.getCurrentBook();
         chapter = activity.getCurrentChapter();
-        loadChapter(book, chapter, null);
+        applyTheme();
+
+        // The Bible text loads on a background thread. If it isn't in memory yet,
+        // remember what to show and render it the moment loading finishes --
+        // previously the page was filled once, empty, and never refreshed.
+        pendingLoad = true;
+        activity.getBibleData().loadAsync(activity, () -> {
+            dataReady = true;
+            if (getView() == null || !isAdded()) return;
+            if (pendingLoad) {
+                pendingLoad = false;
+                loadChapter(book, chapter, pendingScrollVerse);
+                pendingScrollVerse = null;
+            }
+        });
+    }
+
+    private void onTtsStateChanged(boolean playing, int verse) {
+        if (getView() == null) return;
+        if (playing) {
+            ttsStatusBar.setVisibility(View.VISIBLE);
+            ttsStatusText.setText("Reading verse " + verse + "…");
+            adapter.setTtsActiveVerse(verse);
+            AppSettings s = activity.getPrefsManager().getSettings();
+            if (s.ttsAutoScroll) {
+                if (focusMode) showFocusVerse(verse); else scrollToVerse(verse, false);
+            }
+        } else {
+            ttsStatusBar.setVisibility(View.GONE);
+            adapter.setTtsActiveVerse(-1);
+        }
+    }
+
+    @Override
+    public void onDestroyView() {
+        saveScrollPosition();
+        if (activity != null) activity.setTtsUiListener(null);
+        super.onDestroyView();
+    }
+
+    @Override
+    public void onPause() {
+        saveScrollPosition();
+        super.onPause();
+    }
+
+    /** Tabs are shown/hidden, not recreated, so onResume never fires on a tab switch. */
+    @Override
+    public void onHiddenChanged(boolean hidden) {
+        super.onHiddenChanged(hidden);
+        if (hidden) { saveScrollPosition(); return; }
+        syncWithActivity();
+    }
+
+    /** Bring the page in line with the current position, settings and theme. */
+    private void syncWithActivity() {
+        if (activity == null || getView() == null) return;
+        applyTheme();
+        String b = activity.getCurrentBook();
+        int c = activity.getCurrentChapter();
+        if (dataReady && (!b.equals(book) || c != chapter || currentVerses.isEmpty())) {
+            loadChapter(b, c, null);
+        } else {
+            onSettingsChanged();
+            applyAnnotationsToAdapter();
+        }
+        syncTtsBar();
+    }
+
+    private void syncTtsBar() {
+        if (ttsStatusBar == null || activity == null || activity.getTtsManager() == null) return;
+        if (!activity.getTtsManager().isPlaying()) {
+            ttsStatusBar.setVisibility(View.GONE);
+            adapter.setTtsActiveVerse(-1);
+        }
     }
 
     private void bindViews(View v) {
@@ -101,6 +177,13 @@ public class ReadFragment extends Fragment {
         ttsStatusBar = v.findViewById(R.id.ttsStatusBar);
         selectionInfo = v.findViewById(R.id.selectionInfo);
         ttsStatusText = v.findViewById(R.id.ttsStatusText);
+        focusContainer = v.findViewById(R.id.focusContainer);
+        chapterHeader = v.findViewById(R.id.chapterHeader);
+        focusRef = v.findViewById(R.id.focusRef);
+        focusText = v.findViewById(R.id.focusText);
+        focusCounter = v.findViewById(R.id.focusCounter);
+        v.findViewById(R.id.focusPrev).setOnClickListener(x -> stepFocus(-1));
+        v.findViewById(R.id.focusNext).setOnClickListener(x -> stepFocus(1));
     }
 
     private void setupRecycler() {
@@ -110,6 +193,7 @@ public class ReadFragment extends Fragment {
             @Override public void onVerseTap(int verseNum) {
                 adapter.toggleSelection(verseNum);
                 updateActionBar();
+                if (activity.getPrefsManager().getSettings().vibrateOnSelect) vibrateTick();
             }
             @Override public void onVerseLongPress(int verseNum) {
                 startReadingFrom(verseNum);
@@ -122,8 +206,8 @@ public class ReadFragment extends Fragment {
         verseRecycler.setAdapter(adapter);
 
         verseRecycler.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
-                saveScrollPosition();
+            @Override public void onScrollStateChanged(@NonNull RecyclerView rv, int newState) {
+                if (newState == RecyclerView.SCROLL_STATE_IDLE) saveScrollPosition();
             }
         });
     }
@@ -190,15 +274,21 @@ public class ReadFragment extends Fragment {
 
     // ── Chapter loading ──────────────────────────────────────────────────────
     public void loadChapter(String book, int chapter, Integer scrollToVerse) {
-        if (activity == null) return;
-        PrefsManager prefs = activity.getPrefsManager();
+        if (activity == null || getView() == null) return;
 
-        // Save scroll of the chapter we're leaving
-        if (this.book != null && scrollToVerse == null) saveScrollPosition();
+        // Remember where we were in the chapter we're leaving
+        if (this.book != null && !currentVerses.isEmpty()) saveScrollPosition();
 
         this.book = book;
         this.chapter = chapter;
 
+        if (!dataReady) {
+            pendingLoad = true;
+            pendingScrollVerse = scrollToVerse;
+            return;
+        }
+
+        PrefsManager prefs = activity.getPrefsManager();
         AppSettings settings = prefs.getSettings();
         boolean isNT = BooksData.isNewTestament(book);
 
@@ -209,22 +299,35 @@ public class ReadFragment extends Fragment {
         BibleDataManager data = activity.getBibleData();
         currentVerses = data.getChapterAsVerseList(book, chapter, settings.translation);
 
+        applyTheme();
         adapter.setTheme(activity.getAppTheme());
         adapter.setSettings(settings);
         adapter.setIsNewTestament(isNT);
         adapter.setVerses(currentVerses);
-
         applyAnnotationsToAdapter();
         updateChapterBookmarkLabel();
+        updateActionBar();
+        applyReadingMode(settings);
 
         if (scrollToVerse != null) {
-            new Handler(Looper.getMainLooper()).postDelayed(() -> scrollToVerse(scrollToVerse, true), 120);
-        } else {
-            int savedScroll = prefs.getScrollPosition(book, chapter);
-            verseRecycler.scrollToPosition(0);
-            if (savedScroll > 0) {
-                new Handler(Looper.getMainLooper()).postDelayed(() -> verseRecycler.scrollBy(0, savedScroll), 60);
+            final int target = scrollToVerse;
+            if (focusMode) showFocusVerse(target);
+            else {
+                scrollToVerse(target, false);
+                new Handler(Looper.getMainLooper()).postDelayed(() -> { if (getView() != null) scrollToVerse(target, true); }, 150);
             }
+        } else {
+            int pos = prefs.getScrollAnchorPosition(book, chapter);
+            int off = prefs.getScrollAnchorOffset(book, chapter);
+            if (pos < 0 || pos >= currentVerses.size()) { pos = 0; off = 0; }
+            // Position-based restore works even while this tab is hidden or not yet
+            // laid out; it is applied on the next layout pass.
+            layoutManager.scrollToPositionWithOffset(pos, off);
+            focusIndex = pos;
+            if (focusMode) showFocusVerse(currentVerses.isEmpty() ? 0 : currentVerses.get(pos).verseNum);
+        }
+        if (currentVerses.isEmpty()) {
+            Toast.makeText(getContext(), book + " " + chapter + " is not available in " + settings.translation, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -234,31 +337,133 @@ public class ReadFragment extends Fragment {
             layoutManager.scrollToPositionWithOffset(pos, 16);
             if (flash) {
                 adapter.flashVerse(verseNum);
-                new Handler(Looper.getMainLooper()).postDelayed(() -> adapter.clearFlash(), 2000);
+                new Handler(Looper.getMainLooper()).postDelayed(() -> { if (getView() != null) adapter.clearFlash(); }, 2000);
             }
         }
     }
 
     private void saveScrollPosition() {
-        if (activity == null || book == null) return;
-        View firstChild = layoutManager.findViewByPosition(layoutManager.findFirstVisibleItemPosition());
-        int offset = firstChild != null ? -firstChild.getTop() : 0;
+        if (activity == null || book == null || layoutManager == null || currentVerses.isEmpty()) return;
         int pos = layoutManager.findFirstVisibleItemPosition();
-        // Encode as approximate pixel offset from top using computeVerticalScrollOffset
-        int scrollY = verseRecycler.computeVerticalScrollOffset();
-        activity.getPrefsManager().saveScrollPosition(book, chapter, scrollY);
+        if (focusMode) pos = focusIndex;
+        if (pos < 0) return;
+        View first = layoutManager.findViewByPosition(pos);
+        int offset = first != null ? first.getTop() : 0;
+        activity.getPrefsManager().saveScrollAnchor(book, chapter, pos, focusMode ? 0 : offset);
     }
 
+    // ── Theme & settings (called live from MainActivity) ─────────────────────
     public void onThemeChanged() {
-        if (activity == null) return;
+        if (activity == null || getView() == null) return;
+        applyTheme();
         adapter.setTheme(activity.getAppTheme());
         adapter.notifyDataSetChanged();
     }
 
+    /** Any setting changed: re-read and redraw once. Cheap enough to call on every slider tick. */
+    public void onSettingsChanged() {
+        if (activity == null || getView() == null) return;
+        AppSettings s = activity.getPrefsManager().getSettings();
+        applyTheme();
+        adapter.setTheme(activity.getAppTheme());
+        adapter.setSettings(s);
+        adapter.notifyDataSetChanged();
+        applyReadingMode(s);
+        if (activity.getTtsManager() != null) {
+            activity.getTtsManager().setRate(s.ttsRate);
+            activity.getTtsManager().setPitch(s.ttsPitch);
+        }
+    }
+
+    private void applyReadingMode(AppSettings s) {
+        boolean wantFocus = "focus".equals(s.readingMode);
+        boolean changed = wantFocus != focusMode;
+        focusMode = wantFocus;
+        verseRecycler.setVisibility(focusMode ? View.GONE : View.VISIBLE);
+        focusContainer.setVisibility(focusMode ? View.VISIBLE : View.GONE);
+        testamentLabel.setVisibility(s.showChapterHeader ? View.VISIBLE : View.GONE);
+        bookLabel.setVisibility(s.showChapterHeader ? View.VISIBLE : View.GONE);
+        chapterLabel.setVisibility(s.showChapterHeader ? View.VISIBLE : View.GONE);
+        if (focusMode) {
+            int first = layoutManager.findFirstVisibleItemPosition();
+            if (changed && first >= 0) focusIndex = first;
+            renderFocus(s);
+        } else if (changed) {
+            layoutManager.scrollToPositionWithOffset(Math.max(0, Math.min(focusIndex, Math.max(0, currentVerses.size() - 1))), 0);
+        }
+    }
+
+    private void stepFocus(int delta) {
+        int next = focusIndex + delta;
+        if (next < 0) { prevChapter(); return; }
+        if (next >= currentVerses.size()) { nextChapter(); return; }
+        focusIndex = next;
+        renderFocus(activity.getPrefsManager().getSettings());
+    }
+
+    private void showFocusVerse(int verseNum) {
+        int pos = adapter.findPositionForVerse(verseNum);
+        if (pos >= 0) focusIndex = pos;
+        renderFocus(activity.getPrefsManager().getSettings());
+    }
+
+    private void renderFocus(AppSettings s) {
+        if (currentVerses.isEmpty()) { focusText.setText(""); focusRef.setText(""); focusCounter.setText("0 / 0"); return; }
+        if (focusIndex < 0) focusIndex = 0;
+        if (focusIndex >= currentVerses.size()) focusIndex = currentVerses.size() - 1;
+        Verse v = currentVerses.get(focusIndex);
+        focusRef.setText(book + " " + chapter + ":" + v.verseNum);
+        focusText.setText(v.text);
+        focusText.setTextSize(s.fontSize + 2);
+        focusText.setTypeface(android.graphics.Typeface.create(
+            s.fontFamily != null ? s.fontFamily : "serif", android.graphics.Typeface.ITALIC));
+        focusCounter.setText((focusIndex + 1) + " / " + currentVerses.size());
+    }
+
+    private void vibrateTick() {
+        try {
+            android.os.Vibrator vib = (android.os.Vibrator) requireContext().getSystemService(Context.VIBRATOR_SERVICE);
+            if (vib != null && vib.hasVibrator()) {
+                vib.vibrate(android.os.VibrationEffect.createOneShot(15, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /** Paint everything the XML can't: labels, pills, bars and chips follow the live theme. */
+    private void applyTheme() {
+        View root = getView();
+        if (root == null || activity == null) return;
+        AppTheme t = activity.getAppTheme();
+        root.setBackgroundColor(t.bg);
+        testamentLabel.setTextColor(t.primaryFg);
+        bookLabel.setTextColor(t.text);
+        chapterLabel.setTextColor(t.sub);
+        for (int id : new int[]{R.id.btnPrevChapter, R.id.btnNextChapter, R.id.btnReadAloud,
+                                R.id.btnBookmarkChapter, R.id.ttsStopBtn, R.id.focusPrev, R.id.focusNext}) {
+            ThemeHelper.pill((TextView) root.findViewById(id), t);
+        }
+        ThemeHelper.bar(actionBar, t, 16);
+        ThemeHelper.bar(ttsStatusBar, t, 12);
+        selectionInfo.setTextColor(t.sub);
+        ttsStatusText.setTextColor(t.text);
+        focusRef.setTextColor(t.primaryFg);
+        focusText.setTextColor(t.text);
+        focusCounter.setTextColor(t.sub);
+        for (int id : new int[]{R.id.chipHighlight, R.id.chipUnderline, R.id.chipBookmark, R.id.chipRead,
+                                R.id.chipWord, R.id.chipNote, R.id.chipCopy, R.id.chipClear}) {
+            Chip c = root.findViewById(id);
+            c.setChipBackgroundColor(android.content.res.ColorStateList.valueOf(t.card));
+            c.setChipStrokeColor(android.content.res.ColorStateList.valueOf(t.border));
+            c.setChipStrokeWidth(ThemeHelper.dp(requireContext(), 1));
+            c.setTextColor(t.text);
+        }
+        updateChapterBookmarkLabel();
+    }
+
     /** Called when translation is switched -- keeps the same top-visible verse. */
     public void onTranslationChanged() {
-        if (activity == null || book == null) return;
-        int firstVisible = layoutManager.findFirstVisibleItemPosition();
+        if (activity == null || book == null || getView() == null || !dataReady) return;
+        int firstVisible = focusMode ? focusIndex : layoutManager.findFirstVisibleItemPosition();
         Integer topVerse = null;
         if (firstVisible >= 0 && firstVisible < currentVerses.size()) {
             topVerse = currentVerses.get(firstVisible).verseNum;
@@ -268,10 +473,13 @@ public class ReadFragment extends Fragment {
         adapter.setSettings(settings);
         adapter.setVerses(currentVerses);
         applyAnnotationsToAdapter();
+        updateActionBar();
         if (topVerse != null) {
             final int tv = topVerse;
-            new Handler(Looper.getMainLooper()).postDelayed(() -> scrollToVerse(tv, false), 80);
+            if (focusMode) showFocusVerse(tv);
+            else layoutManager.scrollToPositionWithOffset(Math.max(0, adapter.findPositionForVerse(tv)), 0);
         }
+        if (focusMode) renderFocus(settings);
     }
 
     private void prevChapter() {
@@ -329,7 +537,15 @@ public class ReadFragment extends Fragment {
         List<Integer> sorted = new ArrayList<>(adapter.getSelected());
         java.util.Collections.sort(sorted);
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < sorted.size(); i++) { if (i > 0) sb.append(','); sb.append(sorted.get(i)); }
+        int i = 0;
+        while (i < sorted.size()) {
+            int j = i;
+            while (j + 1 < sorted.size() && sorted.get(j + 1) == sorted.get(j) + 1) j++;
+            if (sb.length() > 0) sb.append(',');
+            sb.append(sorted.get(i));
+            if (j > i) sb.append('-').append(sorted.get(j));
+            i = j + 1;
+        }
         return book + " " + chapter + ":" + sb;
     }
 
@@ -402,10 +618,13 @@ public class ReadFragment extends Fragment {
     }
 
     private void updateChapterBookmarkLabel() {
+        if (activity == null || book == null || btnBookmarkChapter == null) return;
         List<Bookmark> list = activity.getPrefsManager().getBookmarks();
         String key = book + ":" + chapter + ":ALL";
         boolean exists = list.stream().anyMatch(b -> b.key.equals(key));
         btnBookmarkChapter.setText(exists ? "Bookmarked" : "Bookmark");
+        AppTheme t = activity.getAppTheme();
+        if (exists) ThemeHelper.pillFilled(btnBookmarkChapter, t); else ThemeHelper.pill(btnBookmarkChapter, t);
     }
 
     private void copySelection() {
@@ -451,7 +670,7 @@ public class ReadFragment extends Fragment {
     }
 
     private void applyAnnotationsToAdapter() {
-        if (activity == null) return;
+        if (activity == null || getView() == null || book == null) return;
         PrefsManager prefs = activity.getPrefsManager();
 
         Map<Integer, Highlight> hlMap = new HashMap<>();
@@ -461,14 +680,11 @@ public class ReadFragment extends Fragment {
             if ("highlight".equals(h.type)) hlMap.put(h.verse, h);
             else if ("underline".equals(h.type)) ulMap.put(h.verse, h);
         }
-        adapter.setHighlights(hlMap);
-        adapter.setUnderlines(ulMap);
 
         Set<Integer> bm = new HashSet<>();
         for (Bookmark b : prefs.getBookmarks()) {
             if (b.book.equals(book) && b.chapter == chapter && b.verse >= 0) bm.add(b.verse);
         }
-        adapter.setBookmarked(bm);
 
         com.fountainpdl.bible.utils.WordAnnotationStore store = new com.fountainpdl.bible.utils.WordAnnotationStore(requireContext());
         Map<Integer, List<VerseAdapter.WordAnn>> wordMap = new HashMap<>();
@@ -478,12 +694,15 @@ public class ReadFragment extends Fragment {
             a.id = wa.id; a.text = wa.text; a.type = wa.type; a.color = wa.color;
             list.add(a);
         }
-        adapter.setWordAnnotations(wordMap);
+        adapter.setAnnotations(hlMap, ulMap, bm, wordMap);
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        if (book != null) applyAnnotationsToAdapter();
+        if (book != null && dataReady && !isHidden()) {
+            applyAnnotationsToAdapter();
+            syncTtsBar();
+        }
     }
 }

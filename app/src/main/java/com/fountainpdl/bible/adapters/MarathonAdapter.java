@@ -72,7 +72,7 @@ public class MarathonAdapter extends RecyclerView.Adapter<MarathonAdapter.VH> {
             chip.setChipMinHeight(dp(holder, 22));
             chip.setClickable(false);
             if (theme != null) {
-                if (bookPct == 100) { chip.setChipBackgroundColor(android.content.res.ColorStateList.valueOf(theme.primary)); chip.setTextColor(Color.WHITE); }
+                if (bookPct == 100) { chip.setChipBackgroundColor(android.content.res.ColorStateList.valueOf(theme.primary)); chip.setTextColor(com.fountainpdl.bible.utils.ThemeHelper.onPrimary(theme)); }
                 else if (bookPct > 0) { chip.setChipBackgroundColor(android.content.res.ColorStateList.valueOf(withAlpha(theme.primary, 0x44))); chip.setTextColor(theme.text); }
                 else { chip.setChipBackgroundColor(android.content.res.ColorStateList.valueOf(theme.card)); chip.setTextColor(theme.sub); }
             }
@@ -80,7 +80,7 @@ public class MarathonAdapter extends RecyclerView.Adapter<MarathonAdapter.VH> {
         }
 
         if (theme != null) {
-            holder.name.setTextColor(theme.primary);
+            holder.name.setTextColor(theme.primaryFg);
             holder.meta.setTextColor(theme.sub);
             holder.markRead.setTextColor(theme.text);
             holder.markRead.setBackgroundColor(theme.card);

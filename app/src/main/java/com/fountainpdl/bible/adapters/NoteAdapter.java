@@ -57,11 +57,11 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.VH> {
         }
 
         if (theme != null) {
-            holder.topic.setTextColor(theme.primary);
+            holder.topic.setTextColor(theme.primaryFg);
             holder.text.setTextColor(theme.text);
-            holder.refs.setTextColor(theme.accent);
+            holder.refs.setTextColor(theme.accentFg);
             holder.date.setTextColor(theme.sub);
-            holder.edit.setTextColor(theme.primary);
+            holder.edit.setTextColor(theme.primaryFg);
             holder.delete.setTextColor(theme.sub);
         }
 

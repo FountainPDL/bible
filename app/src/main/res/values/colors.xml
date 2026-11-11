@@ -3,7 +3,10 @@
     <color name="colorPrimary">#7B2FBE</color>
     <color name="colorPrimaryDark">#5A1A9A</color>
     <color name="colorAccent">#C0392B</color>
-    <color name="colorBackground">#0F0A1A</color>
+    <!-- Window background before any in-app theme is painted. Light by default;
+         values-night overrides it. App.java forces DayNight to match the in-app
+         theme, so this always agrees with what the user picked. -->
+    <color name="colorBackground">#F6F2FB</color>
     <color name="white">#FFFFFFFF</color>
     <color name="black">#FF000000</color>
     <color name="transparent">#00000000</color>

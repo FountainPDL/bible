@@ -152,7 +152,7 @@ public class VerseCounts {
         COUNTS.put("Numbers:26", 65);
         COUNTS.put("Numbers:27", 23);
         COUNTS.put("Numbers:28", 31);
-        COUNTS.put("Numbers:29", 39);
+        COUNTS.put("Numbers:29", 40);
         COUNTS.put("Numbers:30", 16);
         COUNTS.put("Numbers:31", 54);
         COUNTS.put("Numbers:32", 42);
@@ -772,7 +772,7 @@ public class VerseCounts {
         COUNTS.put("Jeremiah:18", 23);
         COUNTS.put("Jeremiah:19", 15);
         COUNTS.put("Jeremiah:20", 18);
-        COUNTS.put("Jeremiah:21", 10);
+        COUNTS.put("Jeremiah:21", 14);
         COUNTS.put("Jeremiah:22", 30);
         COUNTS.put("Jeremiah:23", 40);
         COUNTS.put("Jeremiah:24", 10);
@@ -829,7 +829,7 @@ public class VerseCounts {
         COUNTS.put("Ezekiel:18", 32);
         COUNTS.put("Ezekiel:19", 14);
         COUNTS.put("Ezekiel:20", 49);
-        COUNTS.put("Ezekiel:21", 35);
+        COUNTS.put("Ezekiel:21", 32);
         COUNTS.put("Ezekiel:22", 31);
         COUNTS.put("Ezekiel:23", 49);
         COUNTS.put("Ezekiel:24", 27);
@@ -848,7 +848,7 @@ public class VerseCounts {
         COUNTS.put("Ezekiel:37", 28);
         COUNTS.put("Ezekiel:38", 23);
         COUNTS.put("Ezekiel:39", 29);
-        COUNTS.put("Ezekiel:40", 54);
+        COUNTS.put("Ezekiel:40", 49);
         COUNTS.put("Ezekiel:41", 26);
         COUNTS.put("Ezekiel:42", 20);
         COUNTS.put("Ezekiel:43", 27);
@@ -1172,7 +1172,7 @@ public class VerseCounts {
         COUNTS.put("1 John:4", 21);
         COUNTS.put("1 John:5", 21);
         COUNTS.put("2 John:1", 13);
-        COUNTS.put("3 John:1", 15);
+        COUNTS.put("3 John:1", 14);
         COUNTS.put("Jude:1", 25);
         COUNTS.put("Revelation:1", 20);
         COUNTS.put("Revelation:2", 29);

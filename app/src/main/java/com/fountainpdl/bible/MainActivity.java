@@ -1,7 +1,11 @@
 package com.fountainpdl.bible;
 
-import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
+import android.content.res.ColorStateList;
+import android.view.WindowManager;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
+import com.fountainpdl.bible.utils.ThemeHelper;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -39,9 +43,9 @@ public class MainActivity extends AppCompatActivity {
 
     private BottomNavigationView bottomNav;
     private FrameLayout fragmentContainer;
-    private View topBar;
-    private TextView titleLine1, titleLine2, positionChip, translationChip;
-    private View ttsPlayBtn, noteBtn;
+    private View topBar, splash;
+    private TextView titleLine1, titleLine2, positionChip, translationChip, ttsPlayBtn;
+    private android.widget.ImageView noteBtn;
 
     private HomeFragment homeFragment;
     private ReadFragment readFragment;
@@ -52,6 +56,8 @@ public class MainActivity extends AppCompatActivity {
 
     private String currentBook;
     private int currentChapter;
+    private String lastTranslation;
+    private String lastThemeMode;
 
     public interface TtsUiListener { void onTtsStateChanged(boolean playing, int verse); }
     private TtsUiListener ttsUiListener;
@@ -66,42 +72,37 @@ public class MainActivity extends AppCompatActivity {
 
         AppSettings settings = prefsManager.getSettings();
         theme = AppTheme.build(settings);
+        lastTranslation = settings.translation;
+        lastThemeMode = AppTheme.effectiveMode(settings);
 
         currentBook = prefsManager.getCurrentBook();
         currentChapter = prefsManager.getCurrentChapter();
 
         bindViews();
-        applyTheme();
         setupBottomNav();
         setupTopBar();
+        applyChrome(settings);
+        applyKeepScreenOn(settings);
 
-        View splash = findViewById(R.id.splashOverlay);
+        splash = findViewById(R.id.splashOverlay);
         bibleData.loadAsync(this, () -> {
             if (splash != null) splash.setVisibility(View.GONE);
-            showHome();
         });
 
         ttsManager = new TTSManager(this, new TTSManager.Listener() {
-            @Override public void onReady() { }
-            @Override public void onVerseStart(int verseNum) {
-                runOnUiThread(() -> { if (ttsUiListener != null) ttsUiListener.onTtsStateChanged(true, verseNum); });
+            @Override public void onReady() {
+                AppSettings s = prefsManager.getSettings();
+                ttsManager.setRate(s.ttsRate);
+                ttsManager.setPitch(s.ttsPitch);
             }
-            @Override public void onDone() {
-                runOnUiThread(() -> { if (ttsUiListener != null) ttsUiListener.onTtsStateChanged(false, -1); });
-            }
-            @Override public void onError(String message) {
-                runOnUiThread(() -> { if (ttsUiListener != null) ttsUiListener.onTtsStateChanged(false, -1); });
-            }
+            @Override public void onVerseStart(int verseNum) { dispatchTts(true, verseNum); }
+            @Override public void onDone() { dispatchTts(false, -1); }
+            @Override public void onError(String message) { dispatchTts(false, -1); }
         });
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override public void handleOnBackPressed() {
-                if (readFragment != null && readFragment.isAdded() && readFragment == activeFragment) {
-                    if (bottomNav.getSelectedItemId() != R.id.nav_read) {
-                        bottomNav.setSelectedItemId(R.id.nav_read);
-                        return;
-                    }
-                }
+                if (activeFragment == moreFragment && moreFragment != null && moreFragment.handleBack()) return;
                 if (bottomNav.getSelectedItemId() != R.id.nav_home) {
                     bottomNav.setSelectedItemId(R.id.nav_home);
                 } else {
@@ -109,6 +110,13 @@ public class MainActivity extends AppCompatActivity {
                     getOnBackPressedDispatcher().onBackPressed();
                 }
             }
+        });
+    }
+
+    private void dispatchTts(boolean playing, int verse) {
+        runOnUiThread(() -> {
+            if (ttsPlayBtn != null) ttsPlayBtn.setText(playing ? "\u25A0" : "\u25B6");
+            if (ttsUiListener != null) ttsUiListener.onTtsStateChanged(playing, verse);
         });
     }
 
@@ -124,31 +132,14 @@ public class MainActivity extends AppCompatActivity {
         noteBtn = findViewById(R.id.noteBtn);
     }
 
+    // ── Theme / settings ─────────────────────────────────────────────────────
+
+    /** Rebuild the theme from saved settings and repaint the whole app. */
     public void applyTheme() {
         AppSettings s = prefsManager.getSettings();
         theme = AppTheme.build(s);
-
-        getWindow().getDecorView().setBackgroundColor(theme.bg);
-        topBar.setBackgroundColor(theme.navBg);
-        bottomNav.setBackgroundColor(theme.navBg);
-        titleLine1.setTextColor(theme.primary);
-        titleLine2.setTextColor(theme.accent);
-        positionChip.setTextColor(theme.sub);
-
-        GradientDrawable transBg = new GradientDrawable();
-        transBg.setColor(ColorWithAlpha(theme.accent, 0x18));
-        transBg.setStroke(dp(1.5f), ColorWithAlpha(theme.accent, 0x88));
-        transBg.setCornerRadius(dp(20));
-        translationChip.setBackground(transBg);
-        translationChip.setTextColor(theme.accent);
-        translationChip.setText(s.translation);
-
-        bottomNav.setItemIconTintList(android.content.res.ColorStateList.valueOf(theme.sub));
-        bottomNav.setItemTextColor(android.content.res.ColorStateList.valueOf(theme.sub));
-
-        getWindow().setStatusBarColor(theme.navBg);
-        getWindow().setNavigationBarColor(theme.navBg);
-
+        lastThemeMode = AppTheme.effectiveMode(s);
+        applyChrome(s);
         if (homeFragment != null) homeFragment.onThemeChanged();
         if (readFragment != null) readFragment.onThemeChanged();
         if (searchFragment != null) searchFragment.onThemeChanged();
@@ -156,12 +147,95 @@ public class MainActivity extends AppCompatActivity {
         if (moreFragment != null) moreFragment.onThemeChanged();
     }
 
-    private int ColorWithAlpha(int color, int alpha) {
-        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
+    /**
+     * Single entry point for "a setting changed". Re-reads the saved settings and
+     * pushes them to every screen immediately, so nothing waits for a restart or
+     * a tab switch to take effect.
+     */
+    public void onSettingsChanged() {
+        AppSettings s = prefsManager.getSettings();
+        theme = AppTheme.build(s);
+        lastThemeMode = AppTheme.effectiveMode(s);
+        applyChrome(s);
+        applyKeepScreenOn(s);
+
+        boolean translationChanged = !s.translation.equals(lastTranslation);
+        lastTranslation = s.translation;
+
+        if (homeFragment != null) { homeFragment.onThemeChanged(); homeFragment.onSettingsChanged(); }
+        if (readFragment != null) {
+            readFragment.onSettingsChanged();
+            if (translationChanged) readFragment.onTranslationChanged();
+        }
+        if (searchFragment != null) {
+            searchFragment.onThemeChanged();
+            if (translationChanged) searchFragment.onTranslationChanged();
+        }
+        if (libraryFragment != null) {
+            libraryFragment.onThemeChanged();
+            if (translationChanged) libraryFragment.onTranslationChanged();
+        }
+        if (moreFragment != null) moreFragment.onThemeChanged();
     }
 
-    private int dp(float v) {
-        return (int) (v * getResources().getDisplayMetrics().density);
+    /** Paints the activity-level views (top bar, bottom nav, system bars, splash). */
+    private void applyChrome(AppSettings s) {
+        AppTheme t = theme;
+
+        // Keep Material widgets, dialogs and system defaults in the same light/dark
+        // family as the in-app theme. Only touch it when it actually differs so we
+        // never trigger a needless restart.
+        int wantNight = t.isDark ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO;
+        if (AppCompatDelegate.getDefaultNightMode() != wantNight) AppCompatDelegate.setDefaultNightMode(wantNight);
+
+        getWindow().getDecorView().setBackgroundColor(t.bg);
+        if (splash != null) splash.setBackgroundColor(t.bg);
+        topBar.setBackgroundColor(t.navBg);
+        bottomNav.setBackgroundColor(t.navBg);
+        fragmentContainer.setBackgroundColor(t.bg);
+        titleLine1.setTextColor(t.primaryFg);
+        titleLine2.setTextColor(t.accentFg);
+        positionChip.setTextColor(t.text);
+        positionChip.setBackground(ThemeHelper.shape(this, android.graphics.Color.TRANSPARENT, t.border, 20));
+
+        translationChip.setBackground(ThemeHelper.shape(this, ColorUtilsAlpha(t.accent, 0x22), ColorUtilsAlpha(t.accent, 0x99), 20));
+        translationChip.setTextColor(t.accentFg);
+        translationChip.setText(s.translation);
+
+        ttsPlayBtn.setTextColor(t.primaryFg);
+        noteBtn.setColorFilter(t.primaryFg);
+
+        ColorStateList navColors = ThemeHelper.stateList(t.primaryFg, t.sub);
+        bottomNav.setItemIconTintList(navColors);
+        bottomNav.setItemTextColor(navColors);
+
+        getWindow().setStatusBarColor(t.navBg);
+        getWindow().setNavigationBarColor(t.navBg);
+        // Dark icons on a light bar, light icons on a dark one. Without this the
+        // clock and battery vanish whenever the in-app theme differs from the phone's.
+        WindowInsetsControllerCompat c = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (c != null) {
+            c.setAppearanceLightStatusBars(!t.isDark);
+            c.setAppearanceLightNavigationBars(!t.isDark);
+        }
+    }
+
+    private void applyKeepScreenOn(AppSettings s) {
+        if (s.keepScreenOn) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    private int ColorUtilsAlpha(int color, int alpha) {
+        return android.graphics.Color.argb(alpha, android.graphics.Color.red(color),
+            android.graphics.Color.green(color), android.graphics.Color.blue(color));
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Auto Night Mode: the hour may have rolled over while the app was in the background.
+        AppSettings s = prefsManager.getSettings();
+        if (!AppTheme.effectiveMode(s).equals(lastThemeMode)) onSettingsChanged();
     }
 
     private void setupTopBar() {
@@ -173,30 +247,54 @@ public class MainActivity extends AppCompatActivity {
         noteBtn.setOnClickListener(v -> openNoteDialog(null, null));
 
         ttsPlayBtn.setOnClickListener(v -> {
+            if (ttsManager != null && ttsManager.isPlaying()) { ttsManager.stop(); return; }
+            showRead();
             if (readFragment != null) readFragment.startReadingFromTop();
         });
     }
 
     private void setupBottomNav() {
-        homeFragment = new HomeFragment();
-        readFragment = new ReadFragment();
-        searchFragment = new SearchFragment();
-        libraryFragment = new LibraryFragment();
-        moreFragment = new MoreFragment();
-
         FragmentManager fm = getSupportFragmentManager();
-        FragmentTransaction t = fm.beginTransaction();
-        t.add(R.id.fragmentContainer, moreFragment, "more").hide(moreFragment);
-        t.add(R.id.fragmentContainer, libraryFragment, "library").hide(libraryFragment);
-        t.add(R.id.fragmentContainer, searchFragment, "search").hide(searchFragment);
-        t.add(R.id.fragmentContainer, readFragment, "read").hide(readFragment);
-        t.add(R.id.fragmentContainer, homeFragment, "home");
-        t.commitNow();
-        activeFragment = homeFragment;
+
+        // After a restart or recreate the FragmentManager already holds the old
+        // fragments. Reuse them: creating new ones on top is what produced
+        // overlapping, duplicated screens (and blank ones).
+        homeFragment = (HomeFragment) fm.findFragmentByTag("home");
+        readFragment = (ReadFragment) fm.findFragmentByTag("read");
+        searchFragment = (SearchFragment) fm.findFragmentByTag("search");
+        libraryFragment = (LibraryFragment) fm.findFragmentByTag("library");
+        moreFragment = (MoreFragment) fm.findFragmentByTag("more");
+
+        if (homeFragment == null || readFragment == null || searchFragment == null
+                || libraryFragment == null || moreFragment == null) {
+            FragmentTransaction clear = fm.beginTransaction();
+            for (Fragment f : fm.getFragments()) clear.remove(f);
+            clear.commitNowAllowingStateLoss();
+
+            homeFragment = new HomeFragment();
+            readFragment = new ReadFragment();
+            searchFragment = new SearchFragment();
+            libraryFragment = new LibraryFragment();
+            moreFragment = new MoreFragment();
+
+            FragmentTransaction t = fm.beginTransaction();
+            t.add(R.id.fragmentContainer, moreFragment, "more").hide(moreFragment);
+            t.add(R.id.fragmentContainer, libraryFragment, "library").hide(libraryFragment);
+            t.add(R.id.fragmentContainer, searchFragment, "search").hide(searchFragment);
+            t.add(R.id.fragmentContainer, readFragment, "read").hide(readFragment);
+            t.add(R.id.fragmentContainer, homeFragment, "home");
+            t.commitNow();
+            activeFragment = homeFragment;
+            bottomNav.setSelectedItemId(R.id.nav_home);
+        } else {
+            Fragment[] all = {homeFragment, readFragment, searchFragment, libraryFragment, moreFragment};
+            activeFragment = homeFragment;
+            for (Fragment f : all) if (!f.isHidden()) { activeFragment = f; break; }
+        }
 
         bottomNav.setOnItemSelectedListener(item -> {
-            Fragment target;
             int id = item.getItemId();
+            Fragment target;
             if (id == R.id.nav_home) target = homeFragment;
             else if (id == R.id.nav_read) target = readFragment;
             else if (id == R.id.nav_search) target = searchFragment;
@@ -204,7 +302,7 @@ public class MainActivity extends AppCompatActivity {
             else target = moreFragment;
 
             if (target != activeFragment) {
-                fm.beginTransaction().hide(activeFragment).show(target).commit();
+                fm.beginTransaction().setReorderingAllowed(true).hide(activeFragment).show(target).commit();
                 activeFragment = target;
             }
             return true;
@@ -214,16 +312,25 @@ public class MainActivity extends AppCompatActivity {
     public void showHome() { bottomNav.setSelectedItemId(R.id.nav_home); }
     public void showRead() { bottomNav.setSelectedItemId(R.id.nav_read); }
     public void showLibrary() { bottomNav.setSelectedItemId(R.id.nav_library); }
+    public void showLibrary(String tab) {
+        if (libraryFragment != null && tab != null) libraryFragment.openTab(tab);
+        showLibrary();
+    }
+    public void showSearch() { bottomNav.setSelectedItemId(R.id.nav_search); }
 
     // ── Navigation ────────────────────────────────────────────────────────────
     public void navigateToChapter(String book, int chapter, Integer scrollToVerse) {
+        // Don't keep reading the old chapter aloud over the new one.
+        if (ttsManager != null && ttsManager.isPlaying()) ttsManager.stop();
         currentBook = book;
         currentChapter = chapter;
         prefsManager.setCurrentPosition(book, chapter);
         prefsManager.addHistoryEntry(book, chapter);
         positionChip.setText(book + " " + chapter);
-        showRead();
+        if (homeFragment != null) homeFragment.refreshData();
+        // Load first, then reveal the tab, so the Read page never flashes stale content.
         if (readFragment != null) readFragment.loadChapter(book, chapter, scrollToVerse);
+        showRead();
     }
 
     public void openNavigatePicker() {
@@ -236,20 +343,11 @@ public class MainActivity extends AppCompatActivity {
         AppSettings s = prefsManager.getSettings();
         s.translation = "KJV".equals(s.translation) ? "NIV" : "KJV";
         prefsManager.saveSettings(s);
-        translationChip.setText(s.translation);
-        if (readFragment != null) readFragment.onTranslationChanged();
-        if (libraryFragment != null) libraryFragment.onTranslationChanged();
+        onSettingsChanged();
     }
 
-    /** Called when the translation was already set to a specific value elsewhere
-     *  (e.g. picked directly from a settings page rather than toggled). Just
-     *  refreshes the dependent UI to match what's already saved. */
-    public void switchTranslationSilently() {
-        AppSettings s = prefsManager.getSettings();
-        translationChip.setText(s.translation);
-        if (readFragment != null) readFragment.onTranslationChanged();
-        if (libraryFragment != null) libraryFragment.onTranslationChanged();
-    }
+    /** Kept for older callers: settings were saved elsewhere, just refresh everything. */
+    public void switchTranslationSilently() { onSettingsChanged(); }
 
     // ── Dialog launchers ──────────────────────────────────────────────────────
     public void openNoteDialog(String linkedRef, com.fountainpdl.bible.models.Note editNote) {

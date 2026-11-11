@@ -148,6 +148,25 @@ public class MoreFragment extends Fragment {
         applyThemeToDetailPage();
     }
 
+    /** Back inside a settings sub-page returns to the list instead of leaving the tab. */
+    public boolean handleBack() {
+        if (currentPage != null && detailContainer != null && detailContainer.getVisibility() == View.VISIBLE) {
+            showHub();
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void onHiddenChanged(boolean hidden) {
+        super.onHiddenChanged(hidden);
+        if (!hidden && getView() != null) {
+            onThemeChanged();
+            // Engine status may have changed since the Audio page was built.
+            if ("audio".equals(currentPage)) showDetail("audio", detailTitle.getText().toString());
+        }
+    }
+
     private void showHub() {
         currentPage = null;
         detailContainer.setVisibility(View.GONE);
@@ -162,28 +181,20 @@ public class MoreFragment extends Fragment {
 
         detailContent.addView(sectionLabel("TRANSLATION"));
         detailContent.addView(pillRow(new String[]{"KJV", "NIV"}, s.translation, val -> {
-            s.translation = val;
-            activity.getPrefsManager().saveSettings(s);
-            activity.switchTranslationSilently();
+            change(st -> st.translation = val);
         }));
 
         detailContent.addView(sectionLabel("BEHAVIOR"));
         detailContent.addView(toggleRow("Confirm Before Delete", "Ask before removing notes, sermons, marathons",
-            s.confirmBeforeDelete, val -> { s.confirmBeforeDelete = val; save(s); }));
+            s.confirmBeforeDelete, val -> { change(st -> st.confirmBeforeDelete = val); }));
         detailContent.addView(toggleRow("Vibrate on Selection", "Haptic feedback when selecting verses",
-            s.vibrateOnSelect, val -> { s.vibrateOnSelect = val; save(s); }));
+            s.vibrateOnSelect, val -> { change(st -> st.vibrateOnSelect = val); }));
         detailContent.addView(toggleRow("Keep Screen On", "Prevent screen from sleeping while reading",
-            s.keepScreenOn, val -> {
-                s.keepScreenOn = val; save(s);
-                if (activity.getWindow() != null) {
-                    if (val) activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                    else activity.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                }
-            }));
+            s.keepScreenOn, val -> change(st -> st.keepScreenOn = val)));
 
         detailContent.addView(sectionLabel("DEFAULT LIBRARY TAB"));
         detailContent.addView(pillRow(new String[]{"bookmarks", "notes", "sermons", "marathon"}, s.defaultLibraryTab,
-            val -> { s.defaultLibraryTab = val; save(s); }));
+            val -> { change(st -> st.defaultLibraryTab = val); }));
     }
 
     // ── APPEARANCE page ───────────────────────────────────────────────────────
@@ -192,29 +203,29 @@ public class MoreFragment extends Fragment {
 
         detailContent.addView(sectionLabel("THEME MODE"));
         detailContent.addView(pillRow(new String[]{"light", "dark", "amoled"}, s.themeMode, val -> {
-            s.themeMode = val; save(s); activity.applyTheme(); showDetail("appearance", "Appearance");
+            change(st -> st.themeMode = val); showDetail("appearance", "Appearance");
         }));
 
         detailContent.addView(toggleRow("Auto Night Mode", "Switch to dark automatically at night hour",
-            s.autoNight, val -> { s.autoNight = val; save(s); }));
+            s.autoNight, val -> { change(st -> st.autoNight = val); }));
 
         detailContent.addView(sectionLabel("PRIMARY COLOR (tints all backgrounds)"));
         detailContent.addView(colorRow(PRIMARY_PRESETS, s.primaryColor, hex -> {
-            s.primaryColor = hex; save(s); activity.applyTheme(); showDetail("appearance", "Appearance");
+            change(st -> st.primaryColor = hex); showDetail("appearance", "Appearance");
         }));
 
         detailContent.addView(sectionLabel("ACCENT COLOR (buttons, markers, gradient)"));
         detailContent.addView(colorRow(ACCENT_PRESETS, s.accentColor, hex -> {
-            s.accentColor = hex; save(s); activity.applyTheme(); showDetail("appearance", "Appearance");
+            change(st -> st.accentColor = hex); showDetail("appearance", "Appearance");
         }));
 
         detailContent.addView(sectionLabel("LAYOUT"));
         detailContent.addView(toggleRow("Compact Mode", "Reduce spacing between verses",
-            s.compactMode, val -> { s.compactMode = val; save(s); }));
+            s.compactMode, val -> { change(st -> st.compactMode = val); }));
         detailContent.addView(toggleRow("Justify Text", "Align text to both margins",
-            s.justifyText, val -> { s.justifyText = val; save(s); }));
+            s.justifyText, val -> { change(st -> st.justifyText = val); }));
         detailContent.addView(toggleRow("Bold Verse Numbers", "Make verse numbers stand out more",
-            s.boldVerseNumbers, val -> { s.boldVerseNumbers = val; save(s); }));
+            s.boldVerseNumbers, val -> { change(st -> st.boldVerseNumbers = val); }));
     }
 
     // ── READING page ──────────────────────────────────────────────────────────
@@ -222,23 +233,26 @@ public class MoreFragment extends Fragment {
         AppSettings s = activity.getPrefsManager().getSettings();
 
         detailContent.addView(sectionLabel("READING MODE"));
-        detailContent.addView(pillRow(new String[]{"scroll", "focus"}, s.readingMode, val -> { s.readingMode = val; save(s); }));
+        detailContent.addView(pillRow(new String[]{"scroll", "focus"}, s.readingMode, val -> { change(st -> st.readingMode = val); }));
 
         detailContent.addView(sectionLabel("DISPLAY"));
         detailContent.addView(toggleRow("Verse Numbers", "Show the number before each verse",
-            s.verseNumbers, val -> { s.verseNumbers = val; save(s); }));
+            s.verseNumbers, val -> { change(st -> st.verseNumbers = val); }));
         detailContent.addView(toggleRow("Red Letter", "Words of Christ shown in red (New Testament)",
-            s.redLetter, val -> { s.redLetter = val; save(s); }));
+            s.redLetter, val -> { change(st -> st.redLetter = val); }));
         detailContent.addView(toggleRow("Show Chapter Header", "Display book/chapter title above verses",
-            s.showChapterHeader, val -> { s.showChapterHeader = val; save(s); }));
+            s.showChapterHeader, val -> { change(st -> st.showChapterHeader = val); }));
         detailContent.addView(toggleRow("Range Verse Selection", "Pick a start and end verse when navigating",
-            s.rangeVerseSelect, val -> { s.rangeVerseSelect = val; save(s); }));
+            s.rangeVerseSelect, val -> { change(st -> st.rangeVerseSelect = val); }));
+
+        detailContent.addView(sectionLabel("FONT"));
+        detailContent.addView(pillRow(new String[]{"serif", "sans-serif", "monospace"}, s.fontFamily, val -> { change(st -> st.fontFamily = val); }));
 
         detailContent.addView(sectionLabel("FONT SIZE (" + s.fontSize + "px)"));
-        detailContent.addView(sliderRow(12, 30, s.fontSize, val -> { s.fontSize = val; save(s); }));
+        detailContent.addView(sliderRow(12, 30, s.fontSize, val -> { change(st -> st.fontSize = val); }));
 
         detailContent.addView(sectionLabel("LINE SPACING"));
-        detailContent.addView(sliderRow(10, 26, Math.round(s.lineSpacing * 10), val -> { s.lineSpacing = val / 10f; save(s); }));
+        detailContent.addView(sliderRow(10, 26, Math.round(s.lineSpacing * 10), val -> { change(st -> st.lineSpacing = val / 10f); }));
     }
 
     // ── AUDIO page ────────────────────────────────────────────────────────────
@@ -262,13 +276,13 @@ public class MoreFragment extends Fragment {
         detailContent.addView(statusRow("Engine Status", ready ? "Ready" : "Initializing...", ready));
 
         detailContent.addView(sectionLabel("READING SPEED (" + s.ttsRate + "x)"));
-        detailContent.addView(sliderRow(5, 20, Math.round(s.ttsRate * 10), val -> { s.ttsRate = val / 10f; save(s); }));
+        detailContent.addView(sliderRow(5, 20, Math.round(s.ttsRate * 10), val -> { change(st -> st.ttsRate = val / 10f); }));
 
         detailContent.addView(sectionLabel("VOICE PITCH (" + s.ttsPitch + ")"));
-        detailContent.addView(sliderRow(5, 20, Math.round(s.ttsPitch * 10), val -> { s.ttsPitch = val / 10f; save(s); }));
+        detailContent.addView(sliderRow(5, 20, Math.round(s.ttsPitch * 10), val -> { change(st -> st.ttsPitch = val / 10f); }));
 
         detailContent.addView(toggleRow("Auto-Scroll While Reading", "Scroll to the verse currently being read",
-            s.ttsAutoScroll, val -> { s.ttsAutoScroll = val; save(s); }));
+            s.ttsAutoScroll, val -> { change(st -> st.ttsAutoScroll = val); }));
     }
 
     // ── DATA page ─────────────────────────────────────────────────────────────
@@ -376,6 +390,7 @@ public class MoreFragment extends Fragment {
         tv.setTextSize(10.5f);
         tv.setLetterSpacing(0.1f);
         tv.setPadding(0, dp(16), 0, dp(6));
+        tv.setTag("section");
         return tv;
     }
 
@@ -442,7 +457,7 @@ public class MoreFragment extends Fragment {
             GradientDrawable gd = new GradientDrawable();
             gd.setShape(GradientDrawable.OVAL);
             gd.setColor(color);
-            if (color == selectedColor) gd.setStroke(dp(3), Color.WHITE);
+            if (color == selectedColor) gd.setStroke(dp(3), activity.getAppTheme().text);
             dot.setBackground(gd);
             dot.setOnClickListener(v -> onSelect.accept(String.format("#%06X", (0xFFFFFF & color))));
             row.addView(dot);
@@ -542,7 +557,19 @@ public class MoreFragment extends Fragment {
         return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
-    private void save(AppSettings s) { activity.getPrefsManager().saveSettings(s); }
+    /**
+     * Applies one setting change to the CURRENT saved settings (not a copy captured
+     * when the page was built, which could be stale and would overwrite changes made
+     * elsewhere, e.g. the translation chip in the top bar) and pushes it live to
+     * every screen at once.
+     */
+    private void change(Consumer<AppSettings> mutation) {
+        PrefsManager prefs = activity.getPrefsManager();
+        AppSettings fresh = prefs.getSettings();
+        mutation.accept(fresh);
+        prefs.saveSettings(fresh);
+        activity.onSettingsChanged();
+    }
 
     private String capitalize(String s) { return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1); }
 
@@ -553,7 +580,7 @@ public class MoreFragment extends Fragment {
         getView().setBackgroundColor(t.surface);
         applyThemeRecursive(hubList, t);
         if (detailContainer.getVisibility() == View.VISIBLE) applyThemeToDetailPage();
-        if (detailTitle != null) detailTitle.setTextColor(t.primary);
+        if (detailTitle != null) detailTitle.setTextColor(t.primaryFg);
     }
 
     private void applyThemeToDetailPage() {
@@ -576,9 +603,21 @@ public class MoreFragment extends Fragment {
                 bg.setCornerRadius(dp(4));
                 bg.setColor(t.card);
                 tv.setBackground(bg);
+            } else if ("section".equals(tv.getTag())) {
+                tv.setTextColor(t.sub);
             } else {
                 tv.setTextColor(t.text);
             }
+        } else if (view instanceof SwitchCompat) {
+            SwitchCompat sw = (SwitchCompat) view;
+            sw.setThumbTintList(com.fountainpdl.bible.utils.ThemeHelper.stateList(t.primaryFg, 0xFFB0B0B0));
+            sw.setTrackTintList(com.fountainpdl.bible.utils.ThemeHelper.stateList(withAlpha(t.primary, 0x88), withAlpha(0xFF888888, 0x66)));
+        } else if (view instanceof SeekBar) {
+            SeekBar sb = (SeekBar) view;
+            android.content.res.ColorStateList c = android.content.res.ColorStateList.valueOf(t.primaryFg);
+            sb.setProgressTintList(c);
+            sb.setThumbTintList(c);
+            sb.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(withAlpha(t.sub, 0x66)));
         }
         if (view instanceof ViewGroup) {
             ViewGroup vg = (ViewGroup) view;
@@ -586,8 +625,8 @@ public class MoreFragment extends Fragment {
             if (tag instanceof View[]) {
                 View[] parts = (View[]) tag;
                 TextView icon = (TextView) parts[0];
-                icon.setTextColor(Color.WHITE);
-                if (icon.getBackground() != null) icon.getBackground().setTint(t.primary);
+                icon.setTextColor(com.fountainpdl.bible.utils.ThemeHelper.onPrimary(t));
+                if (icon.getBackground() != null) icon.getBackground().mutate().setTint(t.primary);
                 ((TextView) parts[1]).setTextColor(t.text);
                 ((TextView) parts[2]).setTextColor(t.sub);
                 ((TextView) parts[3]).setTextColor(t.sub);
@@ -608,7 +647,7 @@ public class MoreFragment extends Fragment {
     private void stylePill(TextView btn, boolean active, AppTheme t) {
         GradientDrawable gd = new GradientDrawable();
         gd.setCornerRadius(dp(20));
-        if (active) { gd.setColor(withAlpha(t.primary, 0x28)); gd.setStroke(dp(1), t.primary); btn.setTextColor(t.primary); }
+        if (active) { gd.setColor(withAlpha(t.primary, 0x28)); gd.setStroke(dp(1), t.primary); btn.setTextColor(t.primaryFg); }
         else { gd.setColor(Color.TRANSPARENT); gd.setStroke(dp(1), withAlpha(t.sub, 0x55)); btn.setTextColor(t.sub); }
         btn.setBackground(gd);
     }

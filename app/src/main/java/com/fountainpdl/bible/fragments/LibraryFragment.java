@@ -46,7 +46,8 @@ public class LibraryFragment extends Fragment {
     private TextView sermonDetailTitle, sermonDetailBack, sermonDetailEdit;
     private LinearLayout sermonDetailBlocks;
 
-    private String currentTab = "bookmarks";
+    private String currentTab = null;
+    private String pendingTab = null;
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("MMM d, yyyy · h:mm a", Locale.getDefault());
 
     private SimpleRowAdapter simpleAdapter;
@@ -90,11 +91,13 @@ public class LibraryFragment extends Fragment {
         noteAdapter = new NoteAdapter(new NoteAdapter.Listener() {
             @Override public void onEdit(Note note) { activity.openNoteDialog(null, note); }
             @Override public void onDelete(Note note) {
-                PrefsManager prefs = activity.getPrefsManager();
-                List<Note> notes = prefs.getNotes();
-                notes.removeIf(n -> n.id.equals(note.id));
-                prefs.saveNotes(notes);
-                refreshNotes();
+                confirmDelete("note", () -> {
+                    PrefsManager prefs = activity.getPrefsManager();
+                    List<Note> notes = prefs.getNotes();
+                    notes.removeIf(n -> n.id.equals(note.id));
+                    prefs.saveNotes(notes);
+                    refreshNotes();
+                });
             }
             @Override public void onRefTap(String refs) { navigateToFirstRef(refs); }
         });
@@ -102,29 +105,66 @@ public class LibraryFragment extends Fragment {
             @Override public void onOpen(Sermon sermon) { openSermonDetail(sermon); }
             @Override public void onEdit(Sermon sermon) { activity.openSermonDialog(sermon); }
             @Override public void onDelete(Sermon sermon) {
-                PrefsManager prefs = activity.getPrefsManager();
-                List<Sermon> sermons = prefs.getSermons();
-                sermons.removeIf(s -> s.id.equals(sermon.id));
-                prefs.saveSermons(sermons);
-                refreshSermons();
+                confirmDelete("sermon", () -> {
+                    PrefsManager prefs = activity.getPrefsManager();
+                    List<Sermon> sermons = prefs.getSermons();
+                    sermons.removeIf(s -> s.id.equals(sermon.id));
+                    prefs.saveSermons(sermons);
+                    refreshSermons();
+                });
             }
         });
         marathonAdapter = new MarathonAdapter(new MarathonAdapter.Listener() {
             @Override public void onMarkRead(Marathon marathon) { markCurrentChapterRead(marathon); }
             @Override public void onDelete(Marathon marathon) {
-                PrefsManager prefs = activity.getPrefsManager();
-                List<Marathon> list = prefs.getMarathons();
-                list.removeIf(m -> m.id.equals(marathon.id));
-                prefs.saveMarathons(list);
-                refreshMarathons();
+                confirmDelete("marathon", () -> {
+                    PrefsManager prefs = activity.getPrefsManager();
+                    List<Marathon> list = prefs.getMarathons();
+                    list.removeIf(m -> m.id.equals(marathon.id));
+                    prefs.saveMarathons(list);
+                    refreshMarathons();
+                });
             }
         });
 
         setupTabClicks();
         setupSermonDetailControls();
 
-        showTab("bookmarks");
+        String start = pendingTab != null ? pendingTab : activity.getPrefsManager().getSettings().defaultLibraryTab;
+        pendingTab = null;
+        if (start == null) start = "bookmarks";
+        showTab(start);
         onThemeChanged();
+    }
+
+    /** Open a specific tab (used by the Home quick links). Safe before the view exists. */
+    public void openTab(String tab) {
+        if (getView() == null || activity == null) { pendingTab = tab; return; }
+        showTab(tab);
+    }
+
+    /** Honors the "Confirm Before Delete" setting. */
+    private void confirmDelete(String what, Runnable action) {
+        if (!activity.getPrefsManager().getSettings().confirmBeforeDelete) { action.run(); return; }
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("Delete this " + what + "?")
+            .setMessage("This cannot be undone.")
+            .setPositiveButton("Delete", (d, w) -> action.run())
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    /** Re-render the visible tab without kicking the user out of a sermon they're reading. */
+    private void refreshCurrent() {
+        if (activity == null || getView() == null || currentTab == null) return;
+        if (sermonDetailContainer.getVisibility() == View.VISIBLE) return;
+        showTab(currentTab);
+    }
+
+    @Override
+    public void onHiddenChanged(boolean hidden) {
+        super.onHiddenChanged(hidden);
+        if (!hidden) refreshCurrent();
     }
 
     private void setupTabClicks() {
@@ -181,7 +221,7 @@ public class LibraryFragment extends Fragment {
             boolean active = ids[i].equals(currentTab);
             GradientDrawable gd = new GradientDrawable();
             gd.setCornerRadius(dp(20));
-            if (active) { gd.setColor(withAlpha(t.primary, 0x28)); gd.setStroke(dp(1), t.primary); tabs[i].setTextColor(t.primary); }
+            if (active) { gd.setColor(withAlpha(t.primary, 0x28)); gd.setStroke(dp(1), t.primary); tabs[i].setTextColor(t.primaryFg); }
             else { gd.setColor(android.graphics.Color.TRANSPARENT); gd.setStroke(dp(1), withAlpha(t.sub, 0x55)); tabs[i].setTextColor(t.sub); }
             tabs[i].setBackground(gd);
         }
@@ -376,12 +416,19 @@ public class LibraryFragment extends Fragment {
         getView().setBackgroundColor(activity.getAppTheme().surface);
         styleTabs();
         emptyState.setTextColor(activity.getAppTheme().sub);
-        sermonDetailTitle.setTextColor(activity.getAppTheme().primary);
-        showTab(currentTab);
+        sermonDetailTitle.setTextColor(activity.getAppTheme().primaryFg);
+        com.fountainpdl.bible.utils.AppTheme t = activity.getAppTheme();
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, new int[]{t.primary, t.accent});
+        g.setCornerRadius(dp(20));
+        btnAddItem.setBackground(g);
+        int mid = com.fountainpdl.bible.utils.ColorUtils.mix(t.primary, t.accent, 0.5f);
+        btnAddItem.setTextColor(com.fountainpdl.bible.utils.ColorUtils.luminance(mid) > 0.45 ? 0xFF000000 : 0xFFFFFFFF);
+        if (currentTab != null) showTab(currentTab);
     }
 
     public void onTranslationChanged() {
-        if ("sermons".equals(currentTab)) showSermons();
+        if (getView() != null && "sermons".equals(currentTab)) showSermons();
     }
 
     private void toggleEmpty(boolean empty, String message) {
@@ -404,6 +451,6 @@ public class LibraryFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        if (activity != null) showTab(currentTab);
+        if (!isHidden()) refreshCurrent();
     }
 }

@@ -7,7 +7,7 @@
         <item name="android:windowBackground">@color/colorBackground</item>
         <item name="android:statusBarColor">@color/colorBackground</item>
         <item name="android:navigationBarColor">@color/colorBackground</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightStatusBar">@bool/lightSystemBars</item>
     </style>
 
     <style name="AppTheme.NoActionBarLaunch" parent="AppTheme">
