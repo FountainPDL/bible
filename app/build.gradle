@@ -10,13 +10,28 @@ android {
         applicationId "com.fountainpdl.bible"
         minSdk 26
         targetSdk 34
-        versionCode 3
-        versionName "3.0"
+        // Every CI build gets a higher versionCode than the one before, so a new
+        // APK always installs over the old one as an update.
+        versionCode 100 + (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toInteger()
+        versionName "3.1"
+    }
+
+    // One fixed signing key for every build. CI used to sign each APK with a
+    // brand-new random debug key, so Android refused to install an update over the
+    // previous version ("package conflicts"). Same key = clean in-place updates.
+    signingConfigs {
+        shared {
+            storeFile file('fountainpdl.jks')
+            storePassword 'fountainpdl'
+            keyAlias 'fountainpdl'
+            keyPassword 'fountainpdl'
+        }
     }
 
     buildTypes {
-        debug { }
+        debug { signingConfig signingConfigs.shared }
         release {
+            signingConfig signingConfigs.shared
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
