@@ -122,7 +122,7 @@ public class ColorUtils {
             int candidate = fromHsl(hsl[0], hsl[1], l);
             if (contrast(candidate, bg) >= minRatio) return candidate;
         }
-        return lighten ? 0xFFFFFFFF : 0xFF000000;
+        return lighten ? ThemePresets.PAPER : ThemePresets.INK;
     }
 
     public static boolean isDark(int backgroundColor) {

@@ -48,7 +48,7 @@
                 android:paddingTop="9dp"
                 android:paddingBottom="9dp"
                 android:text="+ New"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/neutral_text"
                 android:textSize="12sp"
                 android:fontFamily="serif"/>
         </LinearLayout>

@@ -422,8 +422,7 @@ public class LibraryFragment extends Fragment {
             android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, new int[]{t.primary, t.accent});
         g.setCornerRadius(dp(20));
         btnAddItem.setBackground(g);
-        int mid = com.fountainpdl.bible.utils.ColorUtils.mix(t.primary, t.accent, 0.5f);
-        btnAddItem.setTextColor(com.fountainpdl.bible.utils.ColorUtils.luminance(mid) > 0.45 ? 0xFF000000 : 0xFFFFFFFF);
+        btnAddItem.setTextColor(t.onGradient(t.primary, t.accent));
         if (currentTab != null) showTab(currentTab);
     }
 

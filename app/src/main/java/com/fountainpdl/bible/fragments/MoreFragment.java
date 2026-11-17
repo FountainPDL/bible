@@ -20,6 +20,8 @@ import com.fountainpdl.bible.MainActivity;
 import com.fountainpdl.bible.R;
 import com.fountainpdl.bible.models.AppSettings;
 import com.fountainpdl.bible.utils.AppTheme;
+import com.fountainpdl.bible.utils.ColorUtils;
+import com.fountainpdl.bible.utils.ThemePresets;
 import com.fountainpdl.bible.utils.PrefsManager;
 
 import java.util.function.Consumer;
@@ -31,13 +33,6 @@ public class MoreFragment extends Fragment {
     private View hubScroll, detailContainer;
     private TextView detailTitle;
     private String currentPage = null;
-
-    private static final int[] PRIMARY_PRESETS = {
-        0xFF7B2FBE, 0xFF6D28D9, 0xFF4F46E5, 0xFF2563EB, 0xFF0891B2, 0xFF059669, 0xFFD97706, 0xFFDC2626
-    };
-    private static final int[] ACCENT_PRESETS = {
-        0xFFC0392B, 0xFFE74C3C, 0xFFBE185D, 0xFF7C3AED, 0xFF0EA5E9, 0xFF10B981, 0xFFF59E0B, 0xFFEF4444
-    };
 
     @Nullable @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -200,23 +195,46 @@ public class MoreFragment extends Fragment {
     // ── APPEARANCE page ───────────────────────────────────────────────────────
     private void buildAppearancePage() {
         AppSettings s = activity.getPrefsManager().getSettings();
+        ThemePresets.Preset current = ThemePresets.resolve(s);
 
-        detailContent.addView(sectionLabel("THEME MODE"));
-        detailContent.addView(pillRow(new String[]{"light", "dark", "amoled"}, s.themeMode, val -> {
-            change(st -> st.themeMode = val); showDetail("appearance", "Appearance");
+        detailContent.addView(sectionLabel("DARK THEMES"));
+        addPresetGrid(true, current);
+        detailContent.addView(sectionLabel("LIGHT THEMES"));
+        addPresetGrid(false, current);
+
+        detailContent.addView(toggleRow("Auto Night Mode", "Light themes switch to their dark partner at night",
+            s.autoNight, val -> change(st -> st.autoNight = val)));
+
+        detailContent.addView(sectionLabel("CUSTOM THEME"));
+        TextView hint = new TextView(getContext());
+        hint.setText("Pick your own colors. Choosing any of these switches to a custom theme" + (current == null ? " (active)." : "."));
+        hint.setTextSize(12);
+        hint.setTag("hint");
+        hint.setPadding(0, 0, 0, dp(8));
+        detailContent.addView(hint);
+
+        String mode = current != null ? (current.amoled ? "amoled" : current.dark ? "dark" : "light") : s.themeMode;
+        if (current != null && "sepia".equals(current.id)) mode = "sepia";
+        detailContent.addView(pillRow(new String[]{"light", "dark", "amoled", "sepia"}, current == null ? s.themeMode : "", val -> {
+            final String seedP = hex(current != null ? current.primary : parse(s.primaryColor));
+            final String seedA = hex(current != null ? current.accent : parse(s.accentColor));
+            change(st -> seedCustom(st, seedP, seedA, val));
         }));
 
-        detailContent.addView(toggleRow("Auto Night Mode", "Switch to dark automatically at night hour",
-            s.autoNight, val -> { change(st -> st.autoNight = val); }));
-
-        detailContent.addView(sectionLabel("PRIMARY COLOR (tints all backgrounds)"));
-        detailContent.addView(colorRow(PRIMARY_PRESETS, s.primaryColor, hex -> {
-            change(st -> st.primaryColor = hex); showDetail("appearance", "Appearance");
+        detailContent.addView(sectionLabel("PRIMARY COLOR (tints backgrounds and highlights)"));
+        detailContent.addView(colorRow(ThemePresets.PRIMARY_SWATCHES, current == null ? s.primaryColor : "", hexColor -> {
+            final String seedA = hex(current != null ? current.accent : parse(s.accentColor));
+            final String m = mode;
+            change(st -> { seedCustom(st, hexColor, seedA, current == null ? st.themeMode : m); });
+            showDetail("appearance", "Appearance");
         }));
 
         detailContent.addView(sectionLabel("ACCENT COLOR (buttons, markers, gradient)"));
-        detailContent.addView(colorRow(ACCENT_PRESETS, s.accentColor, hex -> {
-            change(st -> st.accentColor = hex); showDetail("appearance", "Appearance");
+        detailContent.addView(colorRow(ThemePresets.ACCENT_SWATCHES, current == null ? s.accentColor : "", hexColor -> {
+            final String seedP = hex(current != null ? current.primary : parse(s.primaryColor));
+            final String m = mode;
+            change(st -> { seedCustom(st, seedP, hexColor, current == null ? st.themeMode : m); });
+            showDetail("appearance", "Appearance");
         }));
 
         detailContent.addView(sectionLabel("LAYOUT"));
@@ -228,12 +246,103 @@ public class MoreFragment extends Fragment {
             s.boldVerseNumbers, val -> { change(st -> st.boldVerseNumbers = val); }));
     }
 
+    private static int parse(String hex) { return ColorUtils.parseColor(hex, ThemePresets.find(ThemePresets.DEFAULT_ID).primary); }
+    private static String hex(int color) { return String.format("#%06X", 0xFFFFFF & color); }
+
+    /** Switch to a custom theme, keeping the colors the user was looking at as the starting point. */
+    private static void seedCustom(AppSettings st, String primaryHex, String accentHex, String mode) {
+        st.themePreset = ThemePresets.CUSTOM_ID;
+        st.primaryColor = primaryHex;
+        st.accentColor = accentHex;
+        st.themeMode = (mode == null || mode.isEmpty()) ? "dark" : mode;
+    }
+
+    /** Two-column grid of theme tiles. Each tile previews itself in its own colors. */
+    private void addPresetGrid(boolean dark, ThemePresets.Preset current) {
+        java.util.List<ThemePresets.Preset> list = new java.util.ArrayList<>();
+        for (ThemePresets.Preset p : ThemePresets.ALL) if (p.dark == dark) list.add(p);
+        AppTheme now = activity.getAppTheme();
+        for (int i = 0; i < list.size(); i += 2) {
+            LinearLayout row = new LinearLayout(getContext());
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for (int j = 0; j < 2; j++) {
+                if (i + j < list.size()) row.addView(presetTile(list.get(i + j), current, now, j == 0));
+                else { View filler = new View(getContext()); filler.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f)); row.addView(filler); }
+            }
+            detailContent.addView(row);
+        }
+    }
+
+    private View presetTile(ThemePresets.Preset p, ThemePresets.Preset current, AppTheme now, boolean left) {
+        boolean selected = current != null && current.id.equals(p.id);
+        LinearLayout tile = new LinearLayout(getContext());
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setPadding(dp(12), dp(10), dp(12), dp(12));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        lp.setMargins(left ? 0 : dp(5), 0, left ? dp(5) : 0, dp(10));
+        tile.setLayoutParams(lp);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(p.bg);
+        bg.setCornerRadius(dp(14));
+        bg.setStroke(selected ? dp(3) : dp(1), selected ? now.primaryFg : ColorUtils.withAlpha(p.primary, 0x66));
+        tile.setBackground(bg);
+
+        TextView name = new TextView(getContext());
+        name.setText((selected ? "\u2713 " : "") + p.name);
+        name.setTextSize(13);
+        name.setTypeface(android.graphics.Typeface.create("serif", android.graphics.Typeface.BOLD));
+        name.setTextColor(p.text);
+        name.setTag("keep");
+        tile.addView(name);
+
+        TextView sample = new TextView(getContext());
+        sample.setText("In the beginning was the Word");
+        sample.setTextSize(11);
+        sample.setTextColor(p.sub);
+        sample.setTag("keep");
+        sample.setPadding(0, dp(2), 0, dp(8));
+        tile.addView(sample);
+
+        LinearLayout dots = new LinearLayout(getContext());
+        dots.setOrientation(LinearLayout.HORIZONTAL);
+        int[] cols = {p.card, p.primary, p.accent, p.red};
+        for (int c : cols) {
+            View d = new View(getContext());
+            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(18), dp(18));
+            dl.setMarginEnd(dp(6));
+            d.setLayoutParams(dl);
+            GradientDrawable g = new GradientDrawable();
+            g.setShape(GradientDrawable.OVAL);
+            g.setColor(c);
+            g.setStroke(dp(1), ColorUtils.withAlpha(p.text, 0x44));
+            d.setBackground(g);
+            dots.addView(d);
+        }
+        tile.addView(dots);
+
+        tile.setOnClickListener(v -> {
+            change(st -> st.themePreset = p.id);
+            showDetail("appearance", "Appearance");
+        });
+        return tile;
+    }
+
     // ── READING page ──────────────────────────────────────────────────────────
     private void buildReadingPage() {
         AppSettings s = activity.getPrefsManager().getSettings();
 
         detailContent.addView(sectionLabel("READING MODE"));
         detailContent.addView(pillRow(new String[]{"scroll", "focus"}, s.readingMode, val -> { change(st -> st.readingMode = val); }));
+
+        detailContent.addView(sectionLabel("RED LETTER COLOR"));
+        detailContent.addView(pillRow(new String[]{"theme", "custom"}, s.redLetterColor.isEmpty() ? "theme" : "custom", val -> {
+            if ("theme".equals(val)) change(st -> st.redLetterColor = "");
+            else change(st -> { if (st.redLetterColor.isEmpty()) st.redLetterColor = hex(ThemePresets.RED_LETTER_SWATCHES[0]); });
+        }));
+        if (!s.redLetterColor.isEmpty()) {
+            detailContent.addView(colorRow(ThemePresets.RED_LETTER_SWATCHES, s.redLetterColor,
+                hexColor -> { change(st -> st.redLetterColor = hexColor); showDetail("reading", "Reading"); }));
+        }
 
         detailContent.addView(sectionLabel("DISPLAY"));
         detailContent.addView(toggleRow("Verse Numbers", "Show the number before each verse",
@@ -447,7 +556,7 @@ public class MoreFragment extends Fragment {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setPadding(0, dp(2), 0, dp(14));
         int selectedColor;
-        try { selectedColor = Color.parseColor(selectedHex); } catch (Exception e) { selectedColor = presets[0]; }
+        try { selectedColor = Color.parseColor(selectedHex); } catch (Exception e) { selectedColor = 0; }
         for (int color : presets) {
             View dot = new View(getContext());
             int size = dp(30);
@@ -501,7 +610,7 @@ public class MoreFragment extends Fragment {
         dot.setLayoutParams(dotLp);
         GradientDrawable dotBg = new GradientDrawable();
         dotBg.setShape(GradientDrawable.OVAL);
-        dotBg.setColor(ok ? Color.parseColor("#27AE60") : Color.parseColor("#888888"));
+        dotBg.setColor(ok ? activity.getAppTheme().success : activity.getAppTheme().sub);
         dot.setBackground(dotBg);
         row.addView(dot);
 
@@ -592,7 +701,7 @@ public class MoreFragment extends Fragment {
         if (view instanceof TextView && !(view instanceof SwitchCompat)) {
             TextView tv = (TextView) view;
             if ("clearBtn".equals(tv.getTag())) {
-                tv.setTextColor(Color.WHITE);
+                tv.setTextColor(t.onAccent);
                 GradientDrawable bg = new GradientDrawable();
                 bg.setCornerRadius(dp(16));
                 bg.setColor(t.accent);
@@ -603,6 +712,10 @@ public class MoreFragment extends Fragment {
                 bg.setCornerRadius(dp(4));
                 bg.setColor(t.card);
                 tv.setBackground(bg);
+            } else if ("keep".equals(tv.getTag())) {
+                // painted with its own preview colors
+            } else if ("hint".equals(tv.getTag())) {
+                tv.setTextColor(t.sub);
             } else if ("section".equals(tv.getTag())) {
                 tv.setTextColor(t.sub);
             } else {
@@ -610,8 +723,8 @@ public class MoreFragment extends Fragment {
             }
         } else if (view instanceof SwitchCompat) {
             SwitchCompat sw = (SwitchCompat) view;
-            sw.setThumbTintList(com.fountainpdl.bible.utils.ThemeHelper.stateList(t.primaryFg, 0xFFB0B0B0));
-            sw.setTrackTintList(com.fountainpdl.bible.utils.ThemeHelper.stateList(withAlpha(t.primary, 0x88), withAlpha(0xFF888888, 0x66)));
+            sw.setThumbTintList(com.fountainpdl.bible.utils.ThemeHelper.stateList(t.primaryFg, t.sub));
+            sw.setTrackTintList(com.fountainpdl.bible.utils.ThemeHelper.stateList(withAlpha(t.primary, 0x88), withAlpha(t.sub, 0x55)));
         } else if (view instanceof SeekBar) {
             SeekBar sb = (SeekBar) view;
             android.content.res.ColorStateList c = android.content.res.ColorStateList.valueOf(t.primaryFg);

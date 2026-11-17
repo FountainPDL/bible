@@ -32,6 +32,7 @@ import com.fountainpdl.bible.utils.BibleDataManager;
 import com.fountainpdl.bible.utils.BooksData;
 import com.fountainpdl.bible.utils.PrefsManager;
 import com.fountainpdl.bible.utils.ThemeHelper;
+import com.fountainpdl.bible.utils.ThemePresets;
 import com.google.android.material.chip.Chip;
 
 import java.util.ArrayList;
@@ -562,7 +563,7 @@ public class ReadFragment extends Fragment {
         for (int v : adapter.getSelected()) {
             String key = book + ":" + chapter + ":" + v + ":highlight";
             if (allOn) list.removeIf(h -> h.key.equals(key));
-            else if (list.stream().noneMatch(h -> h.key.equals(key))) list.add(new Highlight(book, chapter, v, "highlight", "#F1C40F"));
+            else if (list.stream().noneMatch(h -> h.key.equals(key))) list.add(new Highlight(book, chapter, v, "highlight", ThemePresets.defaultHighlight()));
         }
         prefs.saveHighlights(list);
         adapter.clearSelection();

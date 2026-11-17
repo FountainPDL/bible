@@ -200,7 +200,7 @@ public class NavigatePickerDialog {
 
         TextView openChapter = new TextView(context);
         openChapter.setText("Open Full Chapter");
-        openChapter.setTextColor(com.fountainpdl.bible.utils.ColorUtils.luminance(com.fountainpdl.bible.utils.ColorUtils.mix(theme.primary, theme.accent, 0.5f)) > 0.45 ? Color.BLACK : Color.WHITE);
+        openChapter.setTextColor(theme.onGradient(theme.primary, theme.accent));
         openChapter.setGravity(Gravity.CENTER);
         openChapter.setPadding(dp(14), dp(12), dp(14), dp(12));
         GradientDrawable grad = new GradientDrawable();

@@ -81,6 +81,7 @@ public class BibleDataManager {
             try {
                 loadTranslation(appCtx, "KJV", new String[]{"bible/kjv-ot.json", "bible/kjv-nt.json"});
                 loadTranslation(appCtx, "NIV", new String[]{"bible/niv-ot.json", "bible/niv-nt.json"});
+                JesusWords.load(appCtx);
             } catch (Throwable t) {
                 t.printStackTrace();
             }

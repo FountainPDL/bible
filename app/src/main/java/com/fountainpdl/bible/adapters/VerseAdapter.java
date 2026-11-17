@@ -42,7 +42,7 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
     private int ttsActiveVerse = -1;
     private int flashVerse = -1;
 
-    private AppTheme theme;
+    private AppTheme theme = AppTheme.build(new com.fountainpdl.bible.models.AppSettings());
     private AppSettings settings;
     private boolean isNewTestament;
     private final Listener listener;
@@ -137,12 +137,13 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
         boolean isBookmarked = bookmarked.contains(vn);
         boolean isTtsActive = ttsActiveVerse == vn;
         boolean isFlashing = flashVerse == vn;
-        boolean isRed = settings != null && settings.redLetter && isNewTestament
-                && JesusWords.isRedLetter(verse.book, verse.chapter, vn);
+        // Exact words of Christ (phrase level), from the NIV markup; matched ranges for the KJV.
+        int[][] redRanges = (settings != null && settings.redLetter)
+                ? JesusWords.ranges(settings.translation, verse.book, verse.chapter, vn) : null;
 
         String prefix = (settings == null || settings.verseNumbers) ? (vn + " ") : "";
         boolean boldNums = settings != null && settings.boldVerseNumbers;
-        SpannableBuilder sb = new SpannableBuilder(prefix, verse.text, boldNums);
+        SpannableBuilder sb = new SpannableBuilder(prefix, verse.text, boldNums, redRanges, theme.redWord);
 
         holder.verseText.setText(sb.build());
         holder.verseText.setTextSize(settings != null ? settings.fontSize : 18);
@@ -158,7 +159,7 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
                 holder.verseRoot.getPaddingRight(), vPad);
         }
 
-        int textColor = isRed && theme != null ? theme.redWord : (theme != null ? theme.text : Color.WHITE);
+        int textColor = theme.text;
         holder.verseText.setTextColor(textColor);
 
         if (isUnderlined) holder.verseText.setPaintFlags(holder.verseText.getPaintFlags() | Paint.UNDERLINE_TEXT_FLAG);
@@ -188,12 +189,12 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
                 chip.setTextSize(10.5f);
                 chip.setPadding(dp(holder, 8), dp(holder, 2), dp(holder, 8), dp(holder, 2));
                 android.graphics.drawable.GradientDrawable bg2 = new android.graphics.drawable.GradientDrawable();
-                int annColor = ann.color != null ? safeColor(ann.color) : (theme != null ? theme.primary : Color.MAGENTA);
-                bg2.setColor("highlight".equals(ann.type) ? withAlpha(annColor, 0x66) : withAlpha(theme != null ? theme.primary : Color.GRAY, 0x22));
+                int annColor = ann.color != null ? safeColor(ann.color) : theme.primary;
+                bg2.setColor("highlight".equals(ann.type) ? withAlpha(annColor, 0x66) : withAlpha(theme.primary, 0x22));
                 bg2.setStroke(dp(holder,1), withAlpha(annColor, 0x88));
                 bg2.setCornerRadius(dp(holder, 10));
                 chip.setBackground(bg2);
-                chip.setTextColor(theme != null ? theme.text : Color.WHITE);
+                chip.setTextColor(theme.text);
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
                 lp.setMarginEnd(dp(holder, 4));
                 chip.setLayoutParams(lp);
@@ -218,7 +219,7 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
     }
 
     private int safeColor(String hex) {
-        try { return Color.parseColor(hex); } catch (Exception e) { return Color.GRAY; }
+        try { return Color.parseColor(hex); } catch (Exception e) { return theme.sub; }
     }
 
     private int withAlpha(int color, int alpha) {
@@ -241,13 +242,27 @@ public class VerseAdapter extends RecyclerView.Adapter<VerseAdapter.VH> {
     private static class SpannableBuilder {
         private final String prefix, body;
         private final boolean bold;
-        SpannableBuilder(String prefix, String body, boolean bold) { this.prefix = prefix; this.body = body; this.bold = bold; }
+        private final int[][] red;
+        private final int redColor;
+        SpannableBuilder(String prefix, String body, boolean bold, int[][] red, int redColor) {
+            this.prefix = prefix; this.body = body; this.bold = bold; this.red = red; this.redColor = redColor;
+        }
         CharSequence build() {
-            if (prefix.isEmpty()) return body;
+            if (prefix.isEmpty() && red == null) return body;
             android.text.SpannableString ss = new android.text.SpannableString(prefix + body);
-            ss.setSpan(new android.text.style.RelativeSizeSpan(0.62f), 0, prefix.length(), 0);
-            ss.setSpan(new android.text.style.SuperscriptSpan(), 0, prefix.length(), 0);
-            if (bold) ss.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, prefix.length(), 0);
+            if (!prefix.isEmpty()) {
+                ss.setSpan(new android.text.style.RelativeSizeSpan(0.62f), 0, prefix.length(), 0);
+                ss.setSpan(new android.text.style.SuperscriptSpan(), 0, prefix.length(), 0);
+                if (bold) ss.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, prefix.length(), 0);
+            }
+            if (red != null) {
+                for (int[] r : red) {
+                    int a = Math.max(0, Math.min(body.length(), r[0]));
+                    int b = Math.max(0, Math.min(body.length(), r[1]));
+                    if (b > a) ss.setSpan(new android.text.style.ForegroundColorSpan(redColor),
+                        prefix.length() + a, prefix.length() + b, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
             return ss;
         }
     }

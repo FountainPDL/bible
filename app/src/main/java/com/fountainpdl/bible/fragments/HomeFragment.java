@@ -140,8 +140,7 @@ public class HomeFragment extends Fragment {
                 android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, new int[]{t.primary, t.accent});
             g.setCornerRadius(ThemeHelper.dp(requireContext(), 14));
             nav.setBackground(g);
-            int mid = com.fountainpdl.bible.utils.ColorUtils.mix(t.primary, t.accent, 0.5f);
-            nav.setTextColor(com.fountainpdl.bible.utils.ColorUtils.luminance(mid) > 0.45 ? 0xFF000000 : 0xFFFFFFFF);
+            nav.setTextColor(t.onGradient(t.primary, t.accent));
         }
     }
 

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorBackground">#0F0A1A</color>
+    <color name="colorBackground">#121212</color>
+    <color name="neutral_surface">#1E1E1E</color>
+    <color name="neutral_text">#EEEEEE</color>
 </resources>

@@ -36,11 +36,9 @@ public class WordAnnotationDialog {
     private final OnSavedListener listener;
 
     private String currentType = "highlight";
-    private String currentColor = "#F1C40F";
+    private String currentColor = com.fountainpdl.bible.utils.ThemePresets.defaultHighlight();
 
-    private static final String[] COLORS = {
-        "#F1C40F", "#27AE60", "#2980B9", "#E67E22", "#8E44AD", "#16A085", "#E74C3C", "#1ABC9C"
-    };
+    private static final String[] COLORS = com.fountainpdl.bible.utils.ThemePresets.HIGHLIGHT_COLORS;
 
     public WordAnnotationDialog(Context context, AppTheme theme, String book, int chapter, int verse,
                                  String selectedText, OnSavedListener listener) {

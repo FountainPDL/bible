@@ -2,9 +2,13 @@ package com.fountainpdl.bible.models;
 
 public class AppSettings {
     public String translation = "KJV";
-    public String themeMode = "dark";
-    public String primaryColor = "#7B2FBE";
-    public String accentColor = "#C0392B";
+    // Theme: a preset id from ThemePresets, or "custom" to use the colors below.
+    // null on settings saved by older versions (see ThemePresets.resolve).
+    public String themePreset = null;
+    public String themeMode = "dark";      // only used by "custom": light | dark | amoled | sepia
+    public String primaryColor = "";       // only used by "custom"
+    public String accentColor = "";        // only used by "custom"
+    public String redLetterColor = "";     // "" = the theme's own red-letter color
     public boolean autoNight = false;
     public int nightHour = 22;
     public int fontSize = 18;

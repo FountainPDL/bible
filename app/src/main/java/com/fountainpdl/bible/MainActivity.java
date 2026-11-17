@@ -79,12 +79,12 @@ public class MainActivity extends AppCompatActivity {
         currentChapter = prefsManager.getCurrentChapter();
 
         bindViews();
+        splash = findViewById(R.id.splashOverlay);
         setupBottomNav();
         setupTopBar();
         applyChrome(settings);
         applyKeepScreenOn(settings);
 
-        splash = findViewById(R.id.splashOverlay);
         bibleData.loadAsync(this, () -> {
             if (splash != null) splash.setVisibility(View.GONE);
         });
@@ -189,7 +189,13 @@ public class MainActivity extends AppCompatActivity {
         if (AppCompatDelegate.getDefaultNightMode() != wantNight) AppCompatDelegate.setDefaultNightMode(wantNight);
 
         getWindow().getDecorView().setBackgroundColor(t.bg);
-        if (splash != null) splash.setBackgroundColor(t.bg);
+        if (splash != null) {
+            splash.setBackgroundColor(t.bg);
+            ((TextView) splash.findViewById(R.id.splashTitle1)).setTextColor(t.primaryFg);
+            ((TextView) splash.findViewById(R.id.splashTitle2)).setTextColor(t.accentFg);
+            ((android.widget.ProgressBar) splash.findViewById(R.id.splashProgress))
+                .setIndeterminateTintList(ColorStateList.valueOf(t.primaryFg));
+        }
         topBar.setBackgroundColor(t.navBg);
         bottomNav.setBackgroundColor(t.navBg);
         fragmentContainer.setBackgroundColor(t.bg);

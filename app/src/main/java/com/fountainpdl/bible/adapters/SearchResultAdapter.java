@@ -50,7 +50,7 @@ public class SearchResultAdapter extends RecyclerView.Adapter<SearchResultAdapte
 
         SpannableString spannable = new SpannableString(r.text);
         if (r.matchStart >= 0 && r.matchStart + r.matchLen <= r.text.length()) {
-            int accent = theme != null ? theme.accent : Color.RED;
+            int accent = theme != null ? theme.accentFg : 0;
             spannable.setSpan(new BackgroundColorSpan(withAlpha(accent, 0x55)),
                 r.matchStart, r.matchStart + r.matchLen, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             spannable.setSpan(new StyleSpan(android.graphics.Typeface.BOLD),

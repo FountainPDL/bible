@@ -97,7 +97,7 @@
             android:padding="16dp"
             android:background="@drawable/bg_button_gradient"
             android:text="Navigate to a Passage"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/neutral_text"
             android:textSize="14sp"
             android:gravity="center"
             android:fontFamily="serif"

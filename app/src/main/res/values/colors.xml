@@ -1,13 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Neutral fallback tokens only. They are what Android shows for the split second
+  before the app has painted itself, and what XML-only widgets inherit. They are
+  deliberately plain grey: the real look of the app comes from the selected theme
+  (utils/ThemePresets.java is the one place palettes are defined) and is applied
+  at runtime to every screen. Do not add brand colours here.
+-->
 <resources>
-    <color name="colorPrimary">#7B2FBE</color>
-    <color name="colorPrimaryDark">#5A1A9A</color>
-    <color name="colorAccent">#C0392B</color>
-    <!-- Window background before any in-app theme is painted. Light by default;
-         values-night overrides it. App.java forces DayNight to match the in-app
-         theme, so this always agrees with what the user picked. -->
-    <color name="colorBackground">#F6F2FB</color>
-    <color name="white">#FFFFFFFF</color>
-    <color name="black">#FF000000</color>
+    <color name="colorPrimary">#546E7A</color>
+    <color name="colorPrimaryDark">#37474F</color>
+    <color name="colorAccent">#78909C</color>
+    <color name="colorBackground">#F2F2F2</color>
+    <color name="neutral_surface">#FFFFFF</color>
+    <color name="neutral_text">#212121</color>
+    <color name="neutral_icon">#808080</color>
+    <color name="neutral_border">#33808080</color>
+    <color name="neutral_overlay">#22808080</color>
     <color name="transparent">#00000000</color>
 </resources>

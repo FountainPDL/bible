@@ -24,7 +24,7 @@ public final class ThemeHelper {
     public static GradientDrawable shape(Context c, int fill, int stroke, float radiusDp) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(fill);
-        if (stroke != Color.TRANSPARENT) d.setStroke(dp(c, 1), stroke);
+        if (stroke != 0) d.setStroke(dp(c, 1), stroke);
         d.setCornerRadius(dp(c, radiusDp));
         return d;
     }
@@ -40,14 +40,14 @@ public final class ThemeHelper {
 
     /** Outlined pill button. */
     public static void pill(TextView v, AppTheme t) {
-        v.setBackground(shape(v.getContext(), Color.TRANSPARENT, t.border, 20));
+        v.setBackground(shape(v.getContext(), 0, t.border, 20));
         v.setTextColor(t.primaryFg);
     }
 
     /** Filled (selected) pill. */
     public static void pillFilled(TextView v, AppTheme t) {
-        v.setBackground(shape(v.getContext(), t.primary, Color.TRANSPARENT, 20));
-        v.setTextColor(ColorUtils.luminance(t.primary) > 0.45 ? 0xFF000000 : 0xFFFFFFFF);
+        v.setBackground(shape(v.getContext(), t.primary, 0, 20));
+        v.setTextColor(t.onPrimary);
     }
 
     public static void input(EditText e, AppTheme t) {
@@ -55,11 +55,22 @@ public final class ThemeHelper {
         e.setTextColor(t.text);
         e.setHintTextColor(t.sub);
         e.setBackgroundTintList(null);
+        e.setHighlightColor(ColorUtils.withAlpha(t.primary, 0x55));
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            android.graphics.drawable.Drawable cur = e.getTextCursorDrawable();
+            if (cur != null) { cur = cur.mutate(); cur.setTint(t.primaryFg); e.setTextCursorDrawable(cur); }
+        }
     }
 
     /** Text color for content drawn on top of a solid t.primary fill. */
-    public static int onPrimary(AppTheme t) {
-        return ColorUtils.luminance(t.primary) > 0.45 ? 0xFF000000 : 0xFFFFFFFF;
+    public static int onPrimary(AppTheme t) { return t.onPrimary; }
+
+    /** Solid primary-to-accent gradient used by the big call-to-action buttons. */
+    public static GradientDrawable gradient(Context c, AppTheme t, float radiusDp) {
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{t.primary, t.accent});
+        g.setCornerRadius(dp(c, radiusDp));
+        return g;
     }
 
     /** Recursively colors every TextView under root with the given color. */
