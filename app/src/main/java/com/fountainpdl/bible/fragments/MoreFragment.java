@@ -213,8 +213,9 @@ public class MoreFragment extends Fragment {
         hint.setPadding(0, 0, 0, dp(8));
         detailContent.addView(hint);
 
-        String mode = current != null ? (current.amoled ? "amoled" : current.dark ? "dark" : "light") : s.themeMode;
-        if (current != null && "sepia".equals(current.id)) mode = "sepia";
+        final String mode = current == null ? s.themeMode
+            : "sepia".equals(current.id) ? "sepia"
+            : current.amoled ? "amoled" : current.dark ? "dark" : "light";
         detailContent.addView(pillRow(new String[]{"light", "dark", "amoled", "sepia"}, current == null ? s.themeMode : "", val -> {
             final String seedP = hex(current != null ? current.primary : parse(s.primaryColor));
             final String seedA = hex(current != null ? current.accent : parse(s.accentColor));
