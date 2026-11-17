@@ -17,9 +17,9 @@ import java.util.Map;
  *
  * assets/bible/redletter-niv.json holds the exact character ranges of his words,
  * taken from the NIV 2011 words-of-Jesus markup. assets/bible/redletter-kjv.json
- * holds the matching ranges in the KJV text, derived from the NIV structure and
- * verified against the KJV wording (verses where no confident match was possible
- * fall back to coloring the whole verse). Ranges are [start, end) offsets into the
+ * holds the exact ranges in the KJV text, taken from the red-letter markup of KJV+ and
+ * aligned onto the app's KJV text (no guessing involved;
+ * differences in spelling or spacing are bridged by text alignment). Ranges are [start, end) offsets into the
  * verse text exactly as stored in the Bible assets.
  */
 public class JesusWords {

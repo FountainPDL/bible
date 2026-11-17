@@ -449,7 +449,7 @@ public class MoreFragment extends Fragment {
         detailContent.addView(tagline, centerLp());
 
         TextView version = new TextView(getContext());
-        version.setText("Version 3.0 - Native Android Edition");
+        version.setText("Version " + versionName() + " - Native Android Edition");
         version.setTextSize(11.5f);
         version.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams vLp = centerLp();
@@ -457,34 +457,56 @@ public class MoreFragment extends Fragment {
         detailContent.addView(version, vLp);
 
         detailContent.addView(bodyText("TRANSLATIONS", true));
-        detailContent.addView(bodyText("KJV - King James Version (1769), Public Domain, 31,102 verses.", false));
-        detailContent.addView(bodyText("NIV - New International Version, 31,086 verses.", false));
+        detailContent.addView(bodyText("KJV - King James Version (1769), Public Domain, 31,102 verses. Words of Christ in red.", false));
+        detailContent.addView(bodyText("NIV - New International Version (2011). Bundled under licence; words of Christ in red.", false));
 
         detailContent.addView(bodyText("FEATURES", true));
-        detailContent.addView(bodyText("Complete offline Bible with notes, bookmarks, highlights, sermon builder, reading marathons, audio reading, and full-text search. Built natively for Android.", false));
+        detailContent.addView(bodyText("Complete offline Bible with notes, bookmarks, highlights, word annotations, sermon builder, reading marathons, audio reading and full-text search. 19 colour themes plus a fully custom theme, Auto Night Mode, and adjustable red-letter colour. Built natively for Android; no network access.", false));
+    }
+
+    private String versionName() {
+        try {
+            return requireContext().getPackageManager()
+                .getPackageInfo(requireContext().getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     // ── HELP page ─────────────────────────────────────────────────────────────
     private void buildHelpPage() {
         String[][] groups = {
             {"GESTURES",
-                "Swipe left on Read screen - next chapter",
-                "Swipe right on Read screen - previous chapter",
-                "Long-press any verse - start reading aloud from there"},
+                "Swipe left on the Read screen - next chapter",
+                "Swipe right on the Read screen - previous chapter",
+                "Long-press any verse - start reading aloud from there",
+                "Android back button - steps out of a settings page, then closes selection"},
             {"READING",
                 "Tap a verse to select it, then use the action bar",
                 "Tap the book/chapter chip in the top bar to navigate",
-                "Tap the play icon in the top bar to read the whole chapter"},
+                "Tap the play icon in the top bar to read the whole chapter; tap stop to dismiss the audio banner",
+                "Switch between Read and Focus mode in Reading Preferences",
+                "Switch KJV / NIV any time; your place is kept",
+                "Words of Christ show in red; change the colour in Reading Preferences",
+                "Your scroll position in each chapter is remembered"},
+            {"THEMES",
+                "More > Appearance: pick from 19 dark and light themes",
+                "Auto Night Mode swaps a light theme for its dark partner at night",
+                "Custom theme: choose Light, Dark, AMOLED or Sepia, then your own primary and accent colours",
+                "Changes apply instantly across the whole app"},
             {"STUDY",
                 "Select verse(s), then tap Highlight, Underline, or Bookmark",
                 "Tap Word to annotate a specific phrase within a verse",
                 "Tap Note to write a note linked to your selection",
                 "In Notes, tap a reference to jump straight to that verse"},
-            {"SERMONS",
+            {"SEARCH",
+                "Search covers the whole Bible in the current translation",
+                "Tap a result to jump to the verse"},
+            {"SERMONS & MARATHONS",
                 "Add scripture by picker or by typing a reference",
-                "Add commentary blocks between verses",
-                "Reorder blocks with the up/down arrows",
-                "Sermon verse text always matches your current translation"},
+                "Add commentary blocks between verses and reorder with the arrows",
+                "Sermon verse text always matches your current translation",
+                "Marathons track progress per book across 8 built-in plans"},
         };
         for (String[] g : groups) {
             detailContent.addView(sectionLabel(g[0]));
